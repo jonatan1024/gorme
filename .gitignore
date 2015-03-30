@@ -1,0 +1,4 @@
+gorme_ext/msvc12/*/
+*.suo
+*.sdf
+*.opensdf
