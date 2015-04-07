@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug - CSGO|Win32">
@@ -1243,11 +1243,15 @@
   <ItemGroup>
     <ClCompile Include="..\extension.cpp" />
     <ClCompile Include="$(SOURCEMOD)\public\smsdk_ext.cpp" />
+    <ClCompile Include="..\tmpbrush.cpp" />
+    <ClCompile Include="..\vscript_fun.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\extension.h" />
     <ClInclude Include="..\smsdk_config.h" />
     <ClInclude Include="$(SOURCEMOD)\public\smsdk_ext.h" />
+    <ClInclude Include="..\tmpbrush.h" />
+    <ClInclude Include="..\vscript_fun.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
