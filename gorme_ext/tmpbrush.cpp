@@ -7,6 +7,7 @@
 extern IServerTools * g_pServerTools;
 extern IGameHelpers * g_pGameHelpers;
 extern CVsfun * g_pVsfun;
+extern KeyValues * g_pGormeConfig;
 
 inline edict_t *BaseEntityToEdict(CBaseEntity *pEntity) {
 	IServerUnknown *pUnk = (IServerUnknown *)pEntity;
@@ -19,10 +20,9 @@ inline edict_t *BaseEntityToEdict(CBaseEntity *pEntity) {
 }
 
 CTmpTriangle::CTmpTriangle() {
-	//todo config file
-	const char * triangleModel = "models/gorme/triangle.mdl";
-	const char * triangleEntType = "prop_dynamic";
-	const char * triangleEntClass = "CDynamicProp";
+	const char * triangleModel = g_pGormeConfig->GetString("triangleModel", "models/gorme/triangle.mdl");
+	const char * triangleEntType = g_pGormeConfig->GetString("triangleEntType", "prop_dynamic");
+	const char * triangleEntClass = g_pGormeConfig->GetString("triangleEntClass", "CDynamicProp");
 	engine->PrecacheModel(triangleModel);
 	m_entity = (byte*)g_pServerTools->CreateEntityByName(triangleEntType);
 	m_edict = BaseEntityToEdict((CBaseEntity*)m_entity);
@@ -53,7 +53,7 @@ void CTmpTriangle::SetPoints(const Vector ** vecPts) {
 	localPts[1] = *vecPts[2] - *vecPts[0];
 	float maxDist = 0.0;
 	for(int i = 0; i < 6; i++) {
-		maxDist = fmax(maxDist,abs(localPts[i / 3][i % 3]));
+		maxDist = fmax(maxDist, abs(localPts[i / 3][i % 3]));
 	}
 
 	if(*m_origin != *vecPts[0]) {
@@ -84,6 +84,35 @@ inline const Vector& GetPolygonVertex(CPolyhedron * polyhedron, const Polyhedron
 	return polyhedron->pVertices[vertexIndex];
 }
 
+void CTmpBrush::GetFacePoints(int i, Vector points[3]) {
+	const Polyhedron_IndexedPolygon_t& polygon = m_polyhedron->pPolygons[i];
+	for(int j = 0; j < 3; j++) {
+		points[j] = GetPolygonVertex(m_polyhedron, polygon, j);
+	}
+}
+
+void CTmpBrush::Refresh() {
+	CUtlVector<TmpFaceHelper_t> oldhelpers;
+	oldhelpers = m_helpers;
+
+	m_numFaces = m_polyhedron->iPolygonCount;
+	m_tmpTriangles.SetCountNonDestructively(m_numFaces);
+	m_helpers.SetCountNonDestructively(m_numFaces);
+	for(int i = 0; i < m_numFaces; i++) {
+		const Polyhedron_IndexedPolygon_t& polygon = m_polyhedron->pPolygons[i];
+		Assert(polygon.iIndexCount == 3);
+		const Vector * triPts[3];
+		for(int j = 0; j < 3; j++) {
+			triPts[j] = &GetPolygonVertex(m_polyhedron, polygon, j);
+		}
+		m_tmpTriangles[i].SetPoints(triPts);
+		//refresh helpers
+		//todo finish
+		ComputeTriangleNormal(*triPts[0], *triPts[1], *triPts[2], m_helpers[i].normal);
+		m_helpers[i].index = -1;
+	}
+}
+
 bool CTmpBrush::SetPoints(const Vector * points, int ptsCnt) {
 	//prepare polyhedron
 	{
@@ -100,18 +129,14 @@ bool CTmpBrush::SetPoints(const Vector * points, int ptsCnt) {
 		if(!m_polyhedron)
 			return false;
 	}
+	Refresh();
+	return true;
+}
 
-	//set triangles
-	m_tmpTriangles.SetCountNonDestructively(m_polyhedron->iPolygonCount);
-	for(int i = 0; i < m_polyhedron->iPolygonCount; i++) {
-		const Polyhedron_IndexedPolygon_t& polygon = m_polyhedron->pPolygons[i];
-		Assert(polygon.iIndexCount == 3);
-		const Vector * triPts[3];
-		for(int j = 0; j < 3; j++) {
-			triPts[j] = &GetPolygonVertex(m_polyhedron, polygon, j);
-		}
-		m_tmpTriangles[i].SetPoints(triPts);
-	}
-	
+bool CTmpBrush::SetPolyhedron(CPolyhedron * polyhedron) {
+	if(!polyhedron)
+		return false;
+	m_polyhedron = polyhedron;
+	Refresh();
 	return true;
 }

@@ -4,6 +4,10 @@
 #include <IGameHelpers.h>
 #include <vscript/ivscript.h>
 #include "vscript_fun.h"
+#include "brush.h"
+#include <KeyValues.h>
+#include <filesystem.h>
+#include "mdlcompile.h"
 
 CGorme g_Gorme;
 SMEXT_LINK(&g_Gorme);
@@ -11,11 +15,19 @@ SMEXT_LINK(&g_Gorme);
 IServerTools * g_pServerTools = NULL;
 IGameHelpers * g_pGameHelpers = NULL;
 IScriptManager * g_pScriptManager = NULL;
+IBaseFileSystem *g_pBaseFileSystem = NULL;
+
 CVsfun * g_pVsfun = NULL;
+KeyValues * g_pGormeConfig = NULL;
+CMdlCompile * g_pMdlCompile = NULL;
+
 
 bool CGorme::SDK_OnLoad(char *error, size_t maxlength, bool late) {
 	SM_GET_IFACE(GAMEHELPERS, g_pGameHelpers);
 	g_pVsfun = new CVsfun();
+	g_pGormeConfig = new KeyValues("Gorme Config");
+	g_pGormeConfig->LoadFromFile(g_pBaseFileSystem, "cfg/sourcemod/gorme.cfg");
+	g_pMdlCompile = new CMdlCompile();
 	return true;
 }
 
@@ -48,6 +60,9 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	GET_V_IFACE_ANY(GetEngineFactory, g_pScriptManager, IScriptManager, VSCRIPT_INTERFACE_VERSION);
 	if(!g_pScriptManager)
 		return false;
+	GET_V_IFACE_ANY(GetFileSystemFactory, g_pBaseFileSystem, IBaseFileSystem, BASEFILESYSTEM_INTERFACE_VERSION);
+	if(!g_pBaseFileSystem)
+		return false;
 	
 	IScriptVM * svm = g_pScriptManager->CreateVM();
 	hookId_OnRegisterFunction = SH_ADD_MANUALVPHOOK(MHook_RegisterFunction, svm, SH_STATIC(OnRegisterFunction), true);
@@ -60,11 +75,14 @@ void CGorme::SDK_OnUnload() {
 	SH_REMOVE_HOOK_ID(hookId_OnRegisterFunction);
 	SH_REMOVE_HOOK_ID(hookId_OnRegisterClass);
 	delete g_pVsfun;
+	g_pGormeConfig->deleteThis();
+	delete g_pMdlCompile;
 }
 
 CTmpBrush * g_test;
 
 cell_t GormeTest(IPluginContext *pContext, const cell_t *params) {
+	
 	g_test = new CTmpBrush();
 	Vector points[] = {
 		Vector(-16, -16, 0),
@@ -77,6 +95,8 @@ cell_t GormeTest(IPluginContext *pContext, const cell_t *params) {
 		Vector(16, 16, 72),
 	};
 	g_test->SetPoints(points, 8);
+	CBrush b;
+	b.ApplyTmpBrush(g_test);
 	return 0;
 }
 

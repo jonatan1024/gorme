@@ -17,6 +17,7 @@ ScriptVariant_t CVsfun::CallFunction(const char * classname, const char * funcna
 ScriptVariant_t CVsfun::CallFunction(const ScriptFunctionBinding_t * func, void * context, const ScriptVariant_t * args) {
 	ScriptVariant_t ret;
 	ScriptVariant_t * retPtr = ((func->m_desc.m_ReturnType) ? &ret : 0);
-	Assert(func->m_pfnBinding(func->m_pFunction, context, (ScriptVariant_t*)args, func->m_desc.m_Parameters.Count(), retPtr));
+	bool ok = func->m_pfnBinding(func->m_pFunction, context, (ScriptVariant_t*)args, func->m_desc.m_Parameters.Count(), retPtr);
+	Assert(ok);
 	return ret;
 }

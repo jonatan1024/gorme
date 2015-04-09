@@ -118,11 +118,11 @@ time 12
 end
 
 triangles
-singlecolor
+engine/singlecolor
 0		0 0 0		0 0 1		0 0
 3		0 0 0		0 0 1		0 1
 6		0 0 0		0 0 1		1 0
-singlecolor
+engine/singlecolor
 0		0 0 0		0 0 -1		0 0
 6		0 0 0		0 0 -1		1 0
 3		0 0 0		0 0 -1		0 1

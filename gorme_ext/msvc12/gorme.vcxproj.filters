@@ -9,9 +9,8 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
+    <Filter Include="Other Files">
+      <UniqueIdentifier>{92dd081e-da82-482c-b4c7-29a99a7f0eed}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -21,10 +20,16 @@
     <ClCompile Include="$(SOURCEMOD)\public\smsdk_ext.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\vscript_fun.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\tmpbrush.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\vscript_fun.cpp">
+    <ClCompile Include="..\brush.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\mdlcompile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -38,11 +43,28 @@
     <ClInclude Include="..\smsdk_config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\tmpbrush.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\vscript_fun.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\tmpbrush.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\brush.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\mdlcompile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\models\triangle.qc">
+      <Filter>Other Files</Filter>
+    </None>
+    <None Include="..\..\models\triangle.smd">
+      <Filter>Other Files</Filter>
+    </None>
+    <None Include="..\..\cfg\gorme.cfg">
+      <Filter>Other Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

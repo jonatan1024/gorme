@@ -1,6 +1,6 @@
 $modelname		"gorme/triangle.mdl"
 $body			mybody			"triangle.smd"
-$cdmaterials	"engine"
+$cdmaterials	""
 
 $sequence idle triangle frame 0 0
 $animation v1xmin triangle frame 3 3
