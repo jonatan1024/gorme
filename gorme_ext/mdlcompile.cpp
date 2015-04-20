@@ -3,41 +3,50 @@
 #include <filesystem.h>
 #include <KeyValues.h>
 #include <vtf/vtf.h>
+#include <threadtools.h>
 
 extern KeyValues * g_pGormeConfig;
+extern CMdlCompile * g_pMdlCompile;
 
-CMdlCompile::CMdlCompile() : m_thread(this, "MdlCompile"), m_threadTerminate(false), m_mutex() {
+class CCompileThread {
+public:
+	CCompileThread(CBrush * brush) : m_brush(brush) {}
+	void Run();
+private:
+	CBrush *m_brush;
+};
+
+void CCompileThread::Run() {
+	int facecount = m_brush->m_faces.Count();
+	for(int i = 0; i < facecount; i++)
+		g_pMdlCompile->CreateMaterial(m_brush->m_faces[i].m_material);
+
+	const char * path = "models/gorme/temp";
+	g_pFullFileSystem->CreateDirHierarchy(path);
+
+	char mdlhash[10];
+	V_snprintf(mdlhash, sizeof(mdlhash), "%08x", m_brush->Hash());
+	char filename[MAX_PATH];
+	V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
+	g_pMdlCompile->WriteSMD(filename, m_brush);
+	V_snprintf(filename, MAX_PATH, "%s/%s.qc", path, mdlhash);
+	g_pMdlCompile->WriteQC(filename, m_brush, path, mdlhash);
+	g_pMdlCompile->CompileQC(filename);
+	__asm{nop}
 }
 
-CMdlCompile::~CMdlCompile() {
-	m_threadTerminate = true;
-	m_thread.Join();
+unsigned CompileThread(void * params) {
+	CCompileThread t((CBrush*)params);
+	t.Run();
+	return 0;
 }
 
-void CMdlCompile::AddToQueue(CBrush * brush) {
-	m_mutex.Lock();
-	m_queue.Insert(brush);
-	m_mutex.Unlock();
-}
-
-void CMdlCompile::Run() {
-	while(true) {
-		m_mutex.Lock();
-		if(!m_queue.Count()) {
-			m_mutex.Unlock();
-			if(m_threadTerminate)
-				break;
-			continue;
-		}
-		m_brush = m_queue.Head();
-		m_queue.RemoveAtHead();
-		m_mutex.Unlock();
-		CreateMaterials();
-		CreateSource();
-	}
+void CMdlCompile::Compile(CBrush * brush) {
+	CreateSimpleThread(CompileThread, brush);
 }
 
 const char * CMdlCompile::GetMaterialTexture(const char * material) {
+	m_matTexMutex.Lock();
 	if(!m_matTex.Defined(material)) {
 		char filename[MAX_PATH];
 		V_snprintf(filename, MAX_PATH, "materials/%s.vmt", material);
@@ -46,33 +55,32 @@ const char * CMdlCompile::GetMaterialTexture(const char * material) {
 		m_matTex[material] = vmtKv->GetString("$baseTexture");
 		vmtKv->deleteThis();
 	}
+	m_matTexMutex.Unlock();
 	return m_matTex[material];
 }
 
-void CMdlCompile::CreateMaterials() {
-	int facecount = m_brush->m_faces.Count();
+void CMdlCompile::CreateMaterial(const char * material) {
 	CUtlBuffer outbuffer(0, 128, CUtlBuffer::TEXT_BUFFER);
-	for(int i = 0; i < facecount; i++) {
-		const char *material = m_brush->m_faces[i].m_material;
-		char filename[MAX_PATH];
-		V_snprintf(filename, MAX_PATH, "materials/models/gorme/%s.vmt", material);
-		if(!g_pFullFileSystem->FileExists(filename)) {
-			char * lastDir = filename;
-			for(int j = 0; filename[j]; j++)
-				if(filename[j] == '/')
-					lastDir = filename + j;
-			*lastDir = 0;
-			g_pFullFileSystem->CreateDirHierarchy(filename);
-			*lastDir = '/';
-			outbuffer.Clear();
-			outbuffer.Printf("\"vertexLitGeneric\"\n{\n\t\"$baseTexture\" \"%s\"\n}\n", GetMaterialTexture(material));
-			g_pFullFileSystem->WriteFile(filename, 0, outbuffer);
-		}
+	char filename[MAX_PATH];
+	V_snprintf(filename, MAX_PATH, "materials/models/gorme/%s.vmt", material);
+	m_createMaterialMutex.Lock();
+	if(!g_pFullFileSystem->FileExists(filename)) {
+		char * lastDir = filename;
+		for(int j = 0; filename[j]; j++)
+			if(filename[j] == '/')
+				lastDir = filename + j;
+		*lastDir = 0;
+		g_pFullFileSystem->CreateDirHierarchy(filename);
+		*lastDir = '/';
+		outbuffer.Clear();
+		outbuffer.Printf("\"vertexLitGeneric\"\n{\n\t\"$baseTexture\" \"%s\"\n}\n", GetMaterialTexture(material));
+		g_pFullFileSystem->WriteFile(filename, 0, outbuffer);
 	}
-	//TODO add to downloader
+	m_createMaterialMutex.Unlock();
 }
 
 const texDims_t& CMdlCompile::GetTexDims(const char * material) {
+	m_texDimsMutex.Lock();
 	if(!m_texDims.Defined(material)) {
 		VTFFileHeaderV7_1_t * header;
 		CUtlBuffer buffer;
@@ -84,6 +92,7 @@ const texDims_t& CMdlCompile::GetTexDims(const char * material) {
 		dims.height = header->height;
 		dims.width = header->width;
 	}
+	m_texDimsMutex.Unlock();
 	return m_texDims[material];
 }
 
@@ -96,24 +105,12 @@ void CMdlCompile::GetVertexUV(const CFace& face, const Vector& vertex, float* ve
 		vertexUV[i] = uv[i].Dot(vertex);
 }
 
-void CMdlCompile::CreateSource() {
-	Assert(m_brush->m_brushFlags.IsFlagSet(BFL_LOCK) && m_brush->m_brushFlags.IsFlagSet(BFL_MDLCOMPILE));
-	const char * path = "models/gorme/temp";
-	g_pFullFileSystem->CreateDirHierarchy(path);
-
-	char mdlname[10];
-	sprintf(mdlname, "%08x", m_brush->Hash());
-
+void CMdlCompile::WriteSMD(const char * filename, const CBrush * brush) {
 	CUtlBuffer outbuffer(0, 256, CUtlBuffer::TEXT_BUFFER);
-	char filename[MAX_PATH];
-
-	//SMD
-
-	outbuffer.Clear();
 	outbuffer.PutString("version 1\n\nnodes\n0 \"r\" -1\nend\n\nskeleton\ntime 0\n0\t0 0 0\t0 0 0\nend\n\ntriangles\n");
-	int facecount = m_brush->m_faces.Count();
+	int facecount = brush->m_faces.Count();
 	for(int i = 0; i < facecount; i++) {
-		CFace* face = &(m_brush->m_faces[i]);
+		const CFace* face = &(brush->m_faces[i]);
 		int tricount = face->m_triangles.Count();
 		for(int k = 0; k < tricount;) {
 			outbuffer.Printf("models/gorme/%s\n", face->m_material);
@@ -128,19 +125,18 @@ void CMdlCompile::CreateSource() {
 		}
 	}
 	outbuffer.PutString("end\n");
-	V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlname);
 	g_pFullFileSystem->WriteFile(filename, 0, outbuffer);
+}
 
-	//QC
+void CMdlCompile::WriteQC(const char * filename, const CBrush * brush, const char * path, const char * mdlname) {
+	CUtlBuffer outbuffer(0, 256, CUtlBuffer::TEXT_BUFFER);
+	//todo $staticprop & $opaque
+	outbuffer.Printf("$modelname \"../%s/%s.mdl\"\n$origin\t%g %g %g\n$body body %s.smd\n$cdmaterials \"\"\n$sequence idle %s.smd\n$collisionmodel %s.smd\n", path, mdlname, brush->m_center[1], -brush->m_center[0], brush->m_center[2], mdlname, mdlname, mdlname);
 
-	outbuffer.Clear();
-	outbuffer.Printf("$modelname \"../%s/%s.mdl\"\n$origin\t%g %g %g\n$body body %s.smd\n$cdmaterials \"\"\n$sequence idle %s.smd\n$collisionmodel %s.smd\n", path, mdlname, m_brush->m_center[1], -m_brush->m_center[0], m_brush->m_center[2], mdlname, mdlname, mdlname);
-
-	V_snprintf(filename, MAX_PATH, "%s/%s.qc", path, mdlname);
 	g_pFullFileSystem->WriteFile(filename, 0, outbuffer);
+}
 
-	//MDL
-
+void CMdlCompile::CompileQC(const char * filename) {
 	char command[MAX_PATH];
 	const char * compiler = g_pGormeConfig->GetString("mdlCompiler");
 	if(compiler && compiler[0]) {
@@ -153,8 +149,4 @@ void CMdlCompile::CreateSource() {
 	else {
 		//todo error
 	}
-	__asm{nop}
 }
-
-
-

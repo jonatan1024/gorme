@@ -72,7 +72,7 @@ void CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
 	m_center = tmpBrush->GetCenter();
 
 	m_brushFlags.SetFlag(BFL_MDLCOMPILE);
-	g_pMdlCompile->AddToQueue(this);
+	g_pMdlCompile->Compile(this);
 }
 
 unsigned CFace::Hash() {

@@ -1259,6 +1259,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\cfg\gorme.cfg" />
+    <None Include="..\..\cfg\gorme.cfg.symlink" />
     <None Include="..\..\models\triangle.qc" />
     <None Include="..\..\models\triangle.smd" />
   </ItemGroup>

@@ -1,7 +1,5 @@
 #pragma once
 #include <utlqueue.h>
-#include <amtl/include/am-thread-utils.h>
-#include <threadtools.h>
 #include <UtlStringMap.h>
 #include <utlstring.h>
 
@@ -13,26 +11,21 @@ typedef struct texDims_t {
 
 class CFace;
 class CBrush;
-class CMdlCompile : ke::IRunnable {
+class CMdlCompile {
 public:
-	CMdlCompile();
-	~CMdlCompile();
-	void AddToQueue(CBrush * brush);
-	void Run();
-private:
+	void Compile(CBrush * brush);
 	const char * GetMaterialTexture(const char * material);
-	const texDims_t& GetTexDims(const char * material);
+	void CreateMaterial(const char * material);
+	void WriteSMD(const char * filename, const CBrush * brush);
+	void CMdlCompile::WriteQC(const char * filename, const CBrush * brush, const char * path, const char * mdlname);
+	void CompileQC(const char * filename);
+	const texDims_t& CMdlCompile::GetTexDims(const char * material);
+private:
 	void GetVertexUV(const CFace& face, const Vector& vertex, float* vertexUV);
-	void CreateMaterials();
-	void CreateSource();
 
-	CUtlQueue<CBrush*> m_queue;
-	CThreadMutex m_mutex;
-	ke::Thread m_thread;
-	//thread vars:
-	bool m_threadTerminate;
-	CBrush * m_brush;
-
+	CThreadMutex m_createMaterialMutex;
+	CThreadMutex m_matTexMutex;
 	CUtlStringMap<CUtlString> m_matTex;
+	CThreadMutex m_texDimsMutex;
 	CUtlStringMap<texDims_t> m_texDims;
 };

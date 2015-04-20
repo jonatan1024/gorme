@@ -6,11 +6,13 @@
 #include <mathlib/vplane.h>
 #include <utlflags.h>
 #include "mdlcompile.h"
+class CCompileThread;
 
 class CBrush;
 class CFace {
 	friend class CBrush;
 	friend class CMdlCompile;
+	friend class CCompileThread;
 public:
 	CFace();
 	void InitUV(bool faceAlign = false);
@@ -32,6 +34,7 @@ enum _brushFlags {
 
 class CBrush {
 	friend class CMdlCompile;
+	friend class CCompileThread;
 public:
 	void ApplyTmpBrush(CTmpBrush * tmpBrush);
 	bool GetFlag(int flag) {
