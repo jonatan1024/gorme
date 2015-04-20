@@ -10,11 +10,14 @@
 class CBrush;
 class CFace {
 	friend class CBrush;
+	friend class CMdlCompile;
 public:
 	CFace();
+	void InitUV(bool faceAlign = false);
+	unsigned Hash();
 private:
 	Vector m_normal;
-	Vector m_points[3];
+	CUtlVector<Vector> m_triangles;
 	char m_material[MAX_PATH];
 	VPlane m_uv[2];
 	int m_hammerId;
@@ -31,10 +34,12 @@ class CBrush {
 	friend class CMdlCompile;
 public:
 	void ApplyTmpBrush(CTmpBrush * tmpBrush);
-	bool GetBrushFlag(int flag) {
+	bool GetFlag(int flag) {
 		return m_brushFlags.IsFlagSet(flag);
 	}
+	unsigned Hash();
 private:
+	Vector m_center;
 	CUtlVector<CFace> m_faces;
 	CUtlFlags<int> m_brushFlags;
 };

@@ -34,6 +34,7 @@ public:
 	int GetNumFaces() { return m_numFaces; }
 	TmpFaceHelper_t * GetFaceHelper(int i) { return &m_helpers[i]; }
 	void GetFacePoints(int index, Vector points[3]);
+	Vector GetCenter();
 private:
 	void Refresh();
 	int m_numFaces;

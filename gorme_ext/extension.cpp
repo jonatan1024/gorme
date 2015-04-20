@@ -8,6 +8,7 @@
 #include <KeyValues.h>
 #include <filesystem.h>
 #include "mdlcompile.h"
+#include <inetchannel.h>
 
 CGorme g_Gorme;
 SMEXT_LINK(&g_Gorme);
@@ -15,7 +16,6 @@ SMEXT_LINK(&g_Gorme);
 IServerTools * g_pServerTools = NULL;
 IGameHelpers * g_pGameHelpers = NULL;
 IScriptManager * g_pScriptManager = NULL;
-IBaseFileSystem *g_pBaseFileSystem = NULL;
 
 CVsfun * g_pVsfun = NULL;
 KeyValues * g_pGormeConfig = NULL;
@@ -26,7 +26,7 @@ bool CGorme::SDK_OnLoad(char *error, size_t maxlength, bool late) {
 	SM_GET_IFACE(GAMEHELPERS, g_pGameHelpers);
 	g_pVsfun = new CVsfun();
 	g_pGormeConfig = new KeyValues("Gorme Config");
-	g_pGormeConfig->LoadFromFile(g_pBaseFileSystem, "cfg/sourcemod/gorme.cfg");
+	g_pGormeConfig->LoadFromFile(g_pFullFileSystem, "cfg/sourcemod/gorme.cfg");
 	g_pMdlCompile = new CMdlCompile();
 	return true;
 }
@@ -60,8 +60,8 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	GET_V_IFACE_ANY(GetEngineFactory, g_pScriptManager, IScriptManager, VSCRIPT_INTERFACE_VERSION);
 	if(!g_pScriptManager)
 		return false;
-	GET_V_IFACE_ANY(GetFileSystemFactory, g_pBaseFileSystem, IBaseFileSystem, BASEFILESYSTEM_INTERFACE_VERSION);
-	if(!g_pBaseFileSystem)
+	GET_V_IFACE_ANY(GetFileSystemFactory, g_pFullFileSystem, IFileSystem, FILESYSTEM_INTERFACE_VERSION);
+	if(!g_pFullFileSystem)
 		return false;
 	
 	IScriptVM * svm = g_pScriptManager->CreateVM();
@@ -80,28 +80,37 @@ void CGorme::SDK_OnUnload() {
 }
 
 CTmpBrush * g_test;
+CBrush * g_test2;
 
 cell_t GormeTest(IPluginContext *pContext, const cell_t *params) {
-	
 	g_test = new CTmpBrush();
-	Vector points[] = {
-		Vector(-16, -16, 0),
-		Vector(-16, 16, 0),
+	/*Vector points[] = {
+		Vector(-32, -16, 0),
+		Vector(-32, 16, 0),
 		Vector(16, -16, 0),
 		Vector(16, 16, 0),
 		Vector(-16, -16, 72),
 		Vector(-16, 16, 72),
 		Vector(16, -16, 72),
 		Vector(16, 16, 72),
+	};*/
+
+	Vector points[] = {
+		Vector(0, 0, 0),
+		Vector(16, 0, 0),
+		Vector(0, 32, 0),
+		Vector(0, 0, 64),
 	};
-	g_test->SetPoints(points, 8);
-	CBrush b;
-	b.ApplyTmpBrush(g_test);
+
+	g_test->SetPoints(points, 4);
+	g_test2 = new CBrush();
+	g_test2->ApplyTmpBrush(g_test);
 	return 0;
 }
 
 cell_t GormeTest2(IPluginContext *pContext, const cell_t *params) {
 	delete g_test;
+	delete g_test2;
 	return 0;
 }
 
