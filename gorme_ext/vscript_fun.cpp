@@ -1,6 +1,19 @@
 #include "vscript_fun.h"
 #include <vscript/ivscript.h>
 
+void CVsfun::OnRegisterFunction(ScriptFunctionBinding_t* func) {
+	RegisterFunction("", func);
+	//RETURN_META(MRES_IGNORED);
+}
+
+bool CVsfun::OnRegisterClass(ScriptClassDesc_t* pClassDest) {
+	FOR_EACH_VEC(pClassDest->m_FunctionBindings, it) {
+		RegisterFunction(pClassDest->m_pszClassname, &pClassDest->m_FunctionBindings[it]);
+	}
+	//RETURN_META_VALUE(MRES_IGNORED, 0);
+	return 0;
+}
+
 void CVsfun::RegisterFunction(const char * classname, const ScriptFunctionBinding_t* funcptr) {
 	m_classes[classname][funcptr->m_desc.m_pszFunction] = funcptr;
 }

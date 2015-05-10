@@ -1241,6 +1241,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\callqueue.cpp" />
+    <ClCompile Include="..\downloader.cpp" />
     <ClCompile Include="..\extension.cpp" />
     <ClCompile Include="$(SOURCEMOD)\public\smsdk_ext.cpp" />
     <ClCompile Include="..\brush.cpp" />
@@ -1249,6 +1251,8 @@
     <ClCompile Include="..\vscript_fun.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\callqueue.h" />
+    <ClInclude Include="..\downloader.h" />
     <ClInclude Include="..\extension.h" />
     <ClInclude Include="..\brush.h" />
     <ClInclude Include="..\mdlcompile.h" />

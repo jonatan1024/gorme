@@ -50,6 +50,8 @@ public:
 	 * @return			True if working, false otherwise.
 	 */
 	//virtual bool QueryRunning(char *error, size_t maxlength);
+	void GameFrame(bool simulating);
+	void CheckTransmit(CCheckTransmitInfo *pInfo, const unsigned short *pEdictIndices, int nEdicts);
 public:
 #if defined SMEXT_CONF_METAMOD
 	/**

@@ -1,9 +1,13 @@
 #include "brush.h"
 #include <KeyValues.h>
-#include <generichash.h>
+#include "downloader.h"
+#include <toolframework/itoolentity.h>
+#include "smsdk_ext.h"
 
 extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
+extern CDownloader * g_pDownloader;
+extern IServerTools * g_pServerTools;
 
 CFace::CFace() {
 	strcpy(m_material, g_pGormeConfig->GetString("defaultMaterial", "debug/debugempty"));
@@ -75,21 +79,62 @@ void CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
 	g_pMdlCompile->Compile(this);
 }
 
-unsigned CFace::Hash() {
-	unsigned hash[4];
-	hash[0] = Hash12(m_normal.Base());	//normal
-	hash[1] = HashBlock(m_triangles.Base(), sizeof(Vector) * m_triangles.Count()); //tris
-	hash[2] = HashString(m_material);
-	hash[3] = HashBlock(m_uv, 2 * sizeof(VPlane));
-	return HashBlock(hash, sizeof(hash));
+
+void CBrush::OnMdlReady() {
+	printf("'%s'\n", m_mdlfile);
+	m_brushFlags.ClearFlag(BFL_LOCK);
+	m_brushFlags.SetFlag(BFL_READY);
 }
 
-unsigned CBrush::Hash() {
-	unsigned hash[2] = {0, 0};
-	int faceCount = m_faces.Count();
-	for(int i = 0; i < faceCount; i++) {
-		hash[1] = m_faces[i].Hash();
-		hash[0] = Hash8(hash);
+void CBrush::OnMdlCompiled(CUtlString mdlfile) {
+	m_brushFlags.ClearFlag(BFL_MDLCOMPILE);
+	strcpy(m_mdlfile, mdlfile);
+	CUtlVector<CUtlString> files;
+
+	{
+		int dotpos = strlen(m_mdlfile) - 4;
+		const char exts[][16] = {".vvd", ".phy", ".dx90.vtx", ".mdl"};
+		for(int i = 0; i < sizeof(exts) / sizeof(*exts); i++) {
+			strcpy(m_mdlfile + dotpos, exts[i]);
+			files.AddToTail(m_mdlfile);
+		}
 	}
-	return hash[0];
+	CUtlString matfile;
+	FOR_EACH_VEC(m_faces, it) {
+		matfile.Format("materials/models/gorme/%s.vmt", m_faces[it].m_material);
+		bool uniq = true;
+		FOR_EACH_VEC(files, it2) {
+			if(files[it2] == matfile) {
+				uniq = false;
+				break;
+			}
+		}
+		if(uniq)
+			files.AddToTail(matfile);
+	}
+	g_pDownloader->SendFiles(files, CreateFunctor(this, &CBrush::OnMdlReady));
+
+	void * m_entity = g_pServerTools->CreateEntityByName("prop_dynamic");
+	g_pServerTools->SetKeyValue(m_entity, "model", m_mdlfile);
+	g_pServerTools->DispatchSpawn(m_entity);
+	edict_t * e = ((IServerUnknown *)m_entity)->GetNetworkable()->GetEdict();
+	e->m_fStateFlags |= FL_EDICT_DONTSEND | FL_EDICT_ALWAYS;
+}
+
+void CFace::Hash(CRC32_t* crc) {
+	CRC32_ProcessBuffer(crc, m_normal.Base(), sizeof(Vector));
+	CRC32_ProcessBuffer(crc, m_triangles.Base(), sizeof(Vector) * m_triangles.Count());
+	CRC32_ProcessBuffer(crc, m_triangles.Base(), sizeof(Vector) * m_triangles.Count());
+	CRC32_ProcessBuffer(crc, m_material, strlen(m_material));
+	CRC32_ProcessBuffer(crc, m_uv, sizeof(VPlane) * 2);
+}
+
+CRC32_t CBrush::Hash() {
+	CRC32_t crc;
+	CRC32_Init(&crc);
+	FOR_EACH_VEC(m_faces, it) {
+		m_faces[it].Hash(&crc);
+	}
+	CRC32_Final(&crc);
+	return crc;
 }

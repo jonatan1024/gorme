@@ -4,22 +4,26 @@
 #include <KeyValues.h>
 #include <vtf/vtf.h>
 #include <threadtools.h>
+#include "callqueue.h"
 
 extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
+extern CCallQueue * g_pCallQueue;
 
 class CCompileThread {
 public:
 	CCompileThread(CBrush * brush) : m_brush(brush) {}
+	~CCompileThread() {
+		g_pMdlCompile->CompileDone();
+	}
 	void Run();
 private:
 	CBrush *m_brush;
 };
 
 void CCompileThread::Run() {
-	int facecount = m_brush->m_faces.Count();
-	for(int i = 0; i < facecount; i++)
-		g_pMdlCompile->CreateMaterial(m_brush->m_faces[i].m_material);
+	FOR_EACH_VEC(m_brush->m_faces, it)
+		g_pMdlCompile->CreateMaterial(m_brush->m_faces[it].m_material);
 
 	const char * path = "models/gorme/temp";
 	g_pFullFileSystem->CreateDirHierarchy(path);
@@ -27,12 +31,25 @@ void CCompileThread::Run() {
 	char mdlhash[10];
 	V_snprintf(mdlhash, sizeof(mdlhash), "%08x", m_brush->Hash());
 	char filename[MAX_PATH];
-	V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
-	g_pMdlCompile->WriteSMD(filename, m_brush);
-	V_snprintf(filename, MAX_PATH, "%s/%s.qc", path, mdlhash);
-	g_pMdlCompile->WriteQC(filename, m_brush, path, mdlhash);
-	g_pMdlCompile->CompileQC(filename);
-	__asm{nop}
+	V_snprintf(filename, MAX_PATH, "%s/%s.mdl", path, mdlhash);
+	if(!g_pFullFileSystem->FileExists(filename)) {
+		V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
+		bool deleteSmd = !g_pFullFileSystem->FileExists(filename);
+		g_pMdlCompile->WriteSMD(filename, m_brush);
+		V_snprintf(filename, MAX_PATH, "%s/%s.qc", path, mdlhash);
+		bool deleteQc = !g_pFullFileSystem->FileExists(filename);
+		g_pMdlCompile->WriteQC(filename, m_brush, path, mdlhash);
+		g_pMdlCompile->CompileQC(filename);
+		//clean
+		if(deleteQc)
+			g_pFullFileSystem->RemoveFile(filename);
+		V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
+		if(deleteSmd)
+			g_pFullFileSystem->RemoveFile(filename);
+
+		V_snprintf(filename, MAX_PATH, "%s/%s.mdl", path, mdlhash);
+	}
+	*g_pCallQueue << CreateFunctor(m_brush, &CBrush::OnMdlCompiled, CUtlString(filename));
 }
 
 unsigned CompileThread(void * params) {
@@ -41,8 +58,40 @@ unsigned CompileThread(void * params) {
 	return 0;
 }
 
+CMdlCompile::CMdlCompile() {
+	int maxThreads = g_pGormeConfig->GetInt("maxThreads", 1);
+	if(maxThreads < 1)
+		maxThreads = 1;
+	m_numThreads = new CThreadSemaphore(maxThreads, maxThreads);
+}
+
+CMdlCompile::~CMdlCompile() {
+	
+	m_threadHandles.Lock();
+	FOR_EACH_VEC(m_threadHandles, it) {
+		ThreadJoin(m_threadHandles[it]);
+		ReleaseThreadHandle(m_threadHandles[it]);
+	}
+	//delete m_numThreads;	//WTF???
+}
+
 void CMdlCompile::Compile(CBrush * brush) {
-	CreateSimpleThread(CompileThread, brush);
+	m_numThreads->Wait();
+	m_threadHandles.Lock();
+	for(int i = 0; i < m_threadHandles.Count(); i++) {
+		if(ThreadJoin(m_threadHandles[i], 0)) {
+			bool released = ReleaseThreadHandle(m_threadHandles[i]);
+			m_threadHandles.Remove(i);
+			i--;
+		}
+	}
+	ThreadHandle_t handle = CreateSimpleThread(CompileThread, brush);
+	m_threadHandles.AddToTail(handle);
+	m_threadHandles.Unlock();
+}
+
+void CMdlCompile::CompileDone() {
+	m_numThreads->Release();
 }
 
 const char * CMdlCompile::GetMaterialTexture(const char * material) {
@@ -108,9 +157,8 @@ void CMdlCompile::GetVertexUV(const CFace& face, const Vector& vertex, float* ve
 void CMdlCompile::WriteSMD(const char * filename, const CBrush * brush) {
 	CUtlBuffer outbuffer(0, 256, CUtlBuffer::TEXT_BUFFER);
 	outbuffer.PutString("version 1\n\nnodes\n0 \"r\" -1\nend\n\nskeleton\ntime 0\n0\t0 0 0\t0 0 0\nend\n\ntriangles\n");
-	int facecount = brush->m_faces.Count();
-	for(int i = 0; i < facecount; i++) {
-		const CFace* face = &(brush->m_faces[i]);
+	FOR_EACH_VEC(brush->m_faces, it) {
+		const CFace* face = &(brush->m_faces[it]);
 		int tricount = face->m_triangles.Count();
 		for(int k = 0; k < tricount;) {
 			outbuffer.Printf("models/gorme/%s\n", face->m_material);
@@ -137,12 +185,24 @@ void CMdlCompile::WriteQC(const char * filename, const CBrush * brush, const cha
 }
 
 void CMdlCompile::CompileQC(const char * filename) {
+	//there was an issue with accessing not-yet existing file
+	//retrying compilation in an ugly, but working workaround
+	int attempsLeft = 3;
+	int wait = 0;
 	char command[MAX_PATH];
 	const char * compiler = g_pGormeConfig->GetString("mdlCompiler");
 	if(compiler && compiler[0]) {
 		V_snprintf(command, MAX_PATH, compiler, filename);
-		int errorCode = system(command);
+		int errorCode = -1;
+		do {
+			ThreadSleep(wait);
+			errorCode = system(command);
+			if(!errorCode)
+				break;
+			wait += 1000; //1s
+		} while(--attempsLeft);
 		if(errorCode != 0) {
+			__asm{nop}
 			//todo error
 		}
 	}

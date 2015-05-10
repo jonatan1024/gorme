@@ -6,6 +6,7 @@
 #include <mathlib/vplane.h>
 #include <utlflags.h>
 #include "mdlcompile.h"
+#include <checksum_crc.h>
 class CCompileThread;
 
 class CBrush;
@@ -16,7 +17,7 @@ class CFace {
 public:
 	CFace();
 	void InitUV(bool faceAlign = false);
-	unsigned Hash();
+	void Hash(CRC32_t* crc);
 private:
 	Vector m_normal;
 	CUtlVector<Vector> m_triangles;
@@ -40,9 +41,12 @@ public:
 	bool GetFlag(int flag) {
 		return m_brushFlags.IsFlagSet(flag);
 	}
-	unsigned Hash();
+	CRC32_t Hash();
+	void OnMdlCompiled(CUtlString mdlfile);
+	void OnMdlReady();
 private:
 	Vector m_center;
 	CUtlVector<CFace> m_faces;
 	CUtlFlags<int> m_brushFlags;
+	char m_mdlfile[MAX_PATH];
 };
