@@ -27,7 +27,8 @@ CCallQueue * g_pCallQueue = NULL;
 
 bool CGorme::SDK_OnLoad(char *error, size_t maxlength, bool late) {
 	SM_GET_IFACE(GAMEHELPERS, g_pGameHelpers);
-	g_pVsfun = new CVsfun();
+	if(!g_pVsfun)
+		g_pVsfun = new CVsfun();
 	g_pGormeConfig = new KeyValues("Gorme Config");
 	g_pGormeConfig->LoadFromFile(g_pFullFileSystem, "cfg/sourcemod/gorme.cfg");
 	g_pMdlCompile = new CMdlCompile();
@@ -59,6 +60,9 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	GET_V_IFACE_ANY(GetServerFactory, g_pServerGameEnts, IServerGameEnts, INTERFACEVERSION_SERVERGAMEENTS);
 	if(!g_pServerGameEnts)
 		return false;
+
+	if(!g_pVsfun)
+		g_pVsfun = new CVsfun();
 
 	IScriptVM * svm = g_pScriptManager->CreateVM();
 	hookIds.AddToTail(SH_ADD_VPHOOK(IScriptVM, RegisterFunction, svm, SH_MEMBER(g_pVsfun, &CVsfun::OnRegisterFunction), true));
