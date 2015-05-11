@@ -10,12 +10,12 @@
 #include "mdlcompile.h"
 #include "downloader.h"
 #include "callqueue.h"
+#include "entfilter.h"
 
 CGorme g_Gorme;
 SMEXT_LINK(&g_Gorme);
 
 IServerTools * g_pServerTools = NULL;
-IGameHelpers * g_pGameHelpers = NULL;
 IScriptManager * g_pScriptManager = NULL;
 IServerGameEnts * g_pServerGameEnts = NULL;
 
@@ -24,15 +24,15 @@ KeyValues * g_pGormeConfig = NULL;
 CMdlCompile * g_pMdlCompile = NULL;
 CDownloader * g_pDownloader = NULL;
 CCallQueue * g_pCallQueue = NULL;
+CEntFilter *g_pEntFilter = NULL;
+
+CThreadMutex g_tickMutex;
 
 bool CGorme::SDK_OnLoad(char *error, size_t maxlength, bool late) {
-	SM_GET_IFACE(GAMEHELPERS, g_pGameHelpers);
-	if(!g_pVsfun)
-		g_pVsfun = new CVsfun();
+	g_tickMutex.Lock();
 	g_pGormeConfig = new KeyValues("Gorme Config");
 	g_pGormeConfig->LoadFromFile(g_pFullFileSystem, "cfg/sourcemod/gorme.cfg");
 	g_pMdlCompile = new CMdlCompile();
-	g_pDownloader = new CDownloader();
 	g_pCallQueue = new CCallQueue();
 	return true;
 }
@@ -42,6 +42,7 @@ SH_DECL_HOOK1_void(IScriptVM, RegisterFunction, SH_NOATTRIB, 0, ScriptFunctionBi
 SH_DECL_HOOK1(IScriptVM, RegisterClass, SH_NOATTRIB, 0, bool, ScriptClassDesc_t*);
 SH_DECL_HOOK1_void(IServerGameDLL, GameFrame, SH_NOATTRIB, 0, bool);
 SH_DECL_HOOK3_void(IServerGameEnts, CheckTransmit, SH_NOATTRIB, 0, CCheckTransmitInfo *, const unsigned short *, int);
+SH_DECL_HOOK2(IBaseFileSystem, FileExists, SH_NOATTRIB, 0, bool, const char *, const char *);
 
 bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool late) {
 	//todo error msgs?
@@ -61,15 +62,17 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	if(!g_pServerGameEnts)
 		return false;
 
-	if(!g_pVsfun)
-		g_pVsfun = new CVsfun();
+	g_pVsfun = new CVsfun();
+	g_pEntFilter = new CEntFilter();
+	g_pDownloader = new CDownloader();
 
 	IScriptVM * svm = g_pScriptManager->CreateVM();
 	hookIds.AddToTail(SH_ADD_VPHOOK(IScriptVM, RegisterFunction, svm, SH_MEMBER(g_pVsfun, &CVsfun::OnRegisterFunction), true));
 	hookIds.AddToTail(SH_ADD_VPHOOK(IScriptVM, RegisterClass, svm, SH_MEMBER(g_pVsfun, &CVsfun::OnRegisterClass), true));
 	g_pScriptManager->DestroyVM(svm);
-	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameDLL, GameFrame, gamedll, SH_MEMBER(this, &CGorme::GameFrame), false));
-	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameEnts, CheckTransmit, g_pServerGameEnts, SH_MEMBER(this, &CGorme::CheckTransmit), true));
+	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameDLL, GameFrame, gamedll, SH_MEMBER(this, &CGorme::OnGameFrame), false));
+	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameEnts, CheckTransmit, g_pServerGameEnts, SH_MEMBER(g_pEntFilter, &CEntFilter::OnCheckTransmit), true));
+	hookIds.AddToTail(SH_ADD_VPHOOK(IBaseFileSystem, FileExists, g_pFullFileSystem, SH_MEMBER(g_pDownloader, &CDownloader::OnFileExists), false));
 	return true;
 }
 
@@ -81,16 +84,16 @@ void CGorme::SDK_OnUnload() {
 	delete g_pMdlCompile;
 	delete g_pDownloader;
 	delete g_pCallQueue;
+	delete g_pEntFilter;
 }
 
-void CGorme::GameFrame(bool simulating) {
+void CGorme::OnGameFrame(bool simulating) {
 	g_pDownloader->Tick();
 	(*g_pCallQueue)();
-	RETURN_META(MRES_IGNORED);
-}
-
-void CGorme::CheckTransmit(CCheckTransmitInfo *pInfo, const unsigned short *pEdictIndices, int nEdicts) {
-	
+	g_tickMutex.Unlock();
+	ThreadSleep(1);
+	g_tickMutex.Lock();
+	RETURN_META(MRES_HANDLED);
 }
 
 cell_t GormeTest(IPluginContext *pContext, const cell_t *params) {
@@ -119,6 +122,7 @@ cell_t GormeTest(IPluginContext *pContext, const cell_t *params) {
 }
 
 cell_t GormeTest2(IPluginContext *pContext, const cell_t *params) {
+	g_pEntFilter->ClearAll();
 	return 0;
 }
 

@@ -7,6 +7,7 @@
 #include <tier1/UtlStringMap.h>
 #include <tier1/utlflags.h>
 
+class INetChannel;
 class INetChannelHandler;
 class CDownloader {
 private:
@@ -31,13 +32,12 @@ public:
 	void Tick();
 
 	void SendFiles(const CUtlVector<CUtlString>& files, CFunctor * callback);
-	void OnFileReceived(const char *file, unsigned int id, bool demo);
-	void OnFileDenied(const char *file, unsigned int id, bool demo);
+	bool OnFileExists(const char *file, const char * path);
+	bool IsFileInQueue(INetChannel * channel, const char * file);
 private:
-	void InitHook(INetChannelHandler* hander);
 	unsigned int m_lastId;
-	bool m_hooked;
 	
 	CUtlVector<TJob*> m_jobs;
 	CUtlLinkedList<TDownload> m_downloads;
+	const char * m_ofeFalseNegative;
 };

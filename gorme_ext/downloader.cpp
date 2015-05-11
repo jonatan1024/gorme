@@ -3,26 +3,16 @@
 #include <inetchannel.h>
 #include <inetmsghandler.h>
 
-int hookId;
-
-SH_DECL_HOOK3_void(INetChannelHandler, FileReceived, SH_NOATTRIB, 0, const char *, unsigned int, bool);
-
 bool uintCmp(const unsigned int& u1, const unsigned int& u2) {
 	return u1 < u2;
 }
 
-CDownloader::CDownloader() : m_lastId(0), m_hooked(false) {
+CDownloader::CDownloader() : m_lastId(0), m_ofeFalseNegative(false) {
 
 }
 
 CDownloader::~CDownloader() {
-	SH_REMOVE_HOOK_ID(hookId);
-}
 
-void CDownloader::InitHook(INetChannelHandler * handler) {
-	printf("%08X\n", handler);
-	hookId = SH_ADD_VPHOOK(INetChannelHandler, FileReceived, handler, SH_MEMBER(this, &CDownloader::OnFileReceived), true);
-	m_hooked = true;
 }
 
 void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * callback) {
@@ -33,9 +23,9 @@ void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * call
 		INetChannel * chan = (INetChannel*)engine->GetPlayerNetInfo(iPlayer);
 		if(!chan)
 			continue;
-		if(!m_hooked)
-			InitHook(chan->GetMsgHandler());
 		for(int iFile = 0; iFile < numFiles; iFile++) {
+			if(IsFileInQueue(chan, files[iFile]))
+				continue;
 			if(chan->SendFile(files[iFile], m_lastId, false)) {
 				job->m_remaining++;
 				m_downloads.AddToTail(TDownload(files[iFile], iPlayer, job));
@@ -62,11 +52,10 @@ void CDownloader::Tick() {
 			continue;
 		}
 	}
-	if(m_downloads.Count()){
+	if(m_downloads.Count()) {
 		const TDownload& down = m_downloads.Element(m_downloads.Head());
 		INetChannel * chan = (INetChannel*)engine->GetPlayerNetInfo(down.m_client);
-		if(chan) {
-			chan->RequestFile(down.m_file, false);
+		if(chan && IsFileInQueue(chan, down.m_file)) {
 			m_downloads.AddToTail(down);
 		}
 		else
@@ -75,15 +64,16 @@ void CDownloader::Tick() {
 	}
 }
 
-void CDownloader::OnFileReceived(const char *file, unsigned int id, bool demo) {
-	IClient *client = META_IFACEPTR(IClient);
-	int iPlayer = client->GetPlayerSlot() + 1;
-	FOR_EACH_LL(m_downloads, iterator) {
-		const TDownload& down = m_downloads.Element(iterator);
-		if(down.m_client == iPlayer && down.m_file == (CUtlString)file) {
-			down.m_job->m_remaining--;
-			m_downloads.Remove(iterator);
-			break;
-		}
+bool CDownloader::OnFileExists(const char * file, const char * path) {
+	if(m_ofeFalseNegative == file) {
+		m_ofeFalseNegative = NULL;
+		RETURN_META_VALUE(MRES_SUPERCEDE, false);
 	}
+	RETURN_META_VALUE(MRES_HANDLED, false);
+}
+
+bool CDownloader::IsFileInQueue(INetChannel * channel, const char * file) {
+	//I love fucking with blackboxes :D
+	m_ofeFalseNegative = file;
+	return channel->SendFile(file, 0, false);
 }

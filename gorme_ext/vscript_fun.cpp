@@ -1,5 +1,6 @@
 #include "vscript_fun.h"
 #include <vscript/ivscript.h>
+#include <typeinfo.h>
 
 void CVsfun::OnRegisterFunction(ScriptFunctionBinding_t* func) {
 	RegisterFunction("", func);

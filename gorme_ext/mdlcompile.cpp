@@ -10,6 +10,15 @@ extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
 extern CCallQueue * g_pCallQueue;
 
+extern CThreadMutex g_tickMutex;
+
+bool MTFileExists(const char * filename) {
+	g_tickMutex.Lock();
+	bool retval = g_pFullFileSystem->FileExists(filename);
+	g_tickMutex.Unlock();
+	return retval;
+}
+
 class CCompileThread {
 public:
 	CCompileThread(CBrush * brush) : m_brush(brush) {}
@@ -32,12 +41,12 @@ void CCompileThread::Run() {
 	V_snprintf(mdlhash, sizeof(mdlhash), "%08x", m_brush->Hash());
 	char filename[MAX_PATH];
 	V_snprintf(filename, MAX_PATH, "%s/%s.mdl", path, mdlhash);
-	if(!g_pFullFileSystem->FileExists(filename)) {
+	if(!MTFileExists(filename)) {
 		V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
-		bool deleteSmd = !g_pFullFileSystem->FileExists(filename);
+		bool deleteSmd = !MTFileExists(filename);
 		g_pMdlCompile->WriteSMD(filename, m_brush);
 		V_snprintf(filename, MAX_PATH, "%s/%s.qc", path, mdlhash);
-		bool deleteQc = !g_pFullFileSystem->FileExists(filename);
+		bool deleteQc = !MTFileExists(filename);
 		g_pMdlCompile->WriteQC(filename, m_brush, path, mdlhash);
 		g_pMdlCompile->CompileQC(filename);
 		//clean
@@ -113,7 +122,7 @@ void CMdlCompile::CreateMaterial(const char * material) {
 	char filename[MAX_PATH];
 	V_snprintf(filename, MAX_PATH, "materials/models/gorme/%s.vmt", material);
 	m_createMaterialMutex.Lock();
-	if(!g_pFullFileSystem->FileExists(filename)) {
+	if(!MTFileExists(filename)) {
 		char * lastDir = filename;
 		for(int j = 0; filename[j]; j++)
 			if(filename[j] == '/')

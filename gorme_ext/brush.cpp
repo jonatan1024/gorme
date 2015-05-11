@@ -3,11 +3,15 @@
 #include "downloader.h"
 #include <toolframework/itoolentity.h>
 #include "smsdk_ext.h"
+#include "entfilter.h"
+#include "callqueue.h"
 
 extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
 extern CDownloader * g_pDownloader;
 extern IServerTools * g_pServerTools;
+extern CEntFilter * g_pEntFilter;
+extern CCallQueue * g_pCallQueue;
 
 CFace::CFace() {
 	strcpy(m_material, g_pGormeConfig->GetString("defaultMaterial", "debug/debugempty"));
@@ -84,6 +88,12 @@ void CBrush::OnMdlReady() {
 	printf("'%s'\n", m_mdlfile);
 	m_brushFlags.ClearFlag(BFL_LOCK);
 	m_brushFlags.SetFlag(BFL_READY);
+
+	engine->PrecacheModel(m_mdlfile);
+	void * m_entity = g_pServerTools->CreateEntityByName("prop_dynamic");
+	g_pServerTools->SetKeyValue(m_entity, "model", m_mdlfile);
+	g_pServerTools->SetKeyValue(m_entity, "solid", "6");
+	g_pServerTools->DispatchSpawn(m_entity);
 }
 
 void CBrush::OnMdlCompiled(CUtlString mdlfile) {
@@ -113,12 +123,6 @@ void CBrush::OnMdlCompiled(CUtlString mdlfile) {
 			files.AddToTail(matfile);
 	}
 	g_pDownloader->SendFiles(files, CreateFunctor(this, &CBrush::OnMdlReady));
-
-	void * m_entity = g_pServerTools->CreateEntityByName("prop_dynamic");
-	g_pServerTools->SetKeyValue(m_entity, "model", m_mdlfile);
-	g_pServerTools->DispatchSpawn(m_entity);
-	edict_t * e = ((IServerUnknown *)m_entity)->GetNetworkable()->GetEdict();
-	e->m_fStateFlags |= FL_EDICT_DONTSEND | FL_EDICT_ALWAYS;
 }
 
 void CFace::Hash(CRC32_t* crc) {

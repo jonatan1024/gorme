@@ -5,7 +5,6 @@
 #include <vscript/ivscript.h>
 
 extern IServerTools * g_pServerTools;
-extern IGameHelpers * g_pGameHelpers;
 extern CVsfun * g_pVsfun;
 extern KeyValues * g_pGormeConfig;
 
@@ -32,11 +31,11 @@ CTmpTriangle::CTmpTriangle() {
 	//todo holy fucking shit move this someplace else, this needs to be static!!!! FOR FUCKS SAKE
 	//or not, we can keep it here for a while
 	sm_sendprop_info_t propInfo;
-	g_pGameHelpers->FindSendPropInfo(triangleEntClass, "m_vecOrigin", &propInfo);
+	gamehelpers->FindSendPropInfo(triangleEntClass, "m_vecOrigin", &propInfo);
 	m_origin = (Vector*)(m_entity + propInfo.actual_offset);
-	g_pGameHelpers->FindSendPropInfo(triangleEntClass, "m_flModelScale", &propInfo);
+	gamehelpers->FindSendPropInfo(triangleEntClass, "m_flModelScale", &propInfo);
 	m_scale = (float*)(m_entity + propInfo.actual_offset);
-	g_pGameHelpers->FindSendPropInfo(triangleEntClass, "m_flPoseParameter", &propInfo);
+	gamehelpers->FindSendPropInfo(triangleEntClass, "m_flPoseParameter", &propInfo);
 	m_controllers = (float*)(m_entity + propInfo.actual_offset);
 
 	m_fScriptSetOrigin = g_pVsfun->LookupFunction("CBaseEntity", "ScriptSetOrigin");
@@ -62,14 +61,14 @@ void CTmpTriangle::SetPoints(const Vector ** vecPts) {
 	}
 	if(*m_scale != maxDist) {
 		*m_scale = maxDist;
-		g_pGameHelpers->SetEdictStateChanged(m_edict, m_entity - (byte*)m_scale);
+		gamehelpers->SetEdictStateChanged(m_edict, m_entity - (byte*)m_scale);
 	}
 	for(int i = 0; i < 6; i++) {
 		//controller works in range from 0.0 to 1.0, we want to work in range from -Inf to +Inf
 		float controllerValue = (1.0 + localPts[i / 3][i % 3] / maxDist) * 0.5;
 		if(m_controllers[i] != controllerValue) {
 			m_controllers[i] = controllerValue;
-			g_pGameHelpers->SetEdictStateChanged(m_edict, m_entity - (byte*)m_controllers + i);
+			gamehelpers->SetEdictStateChanged(m_edict, m_entity - (byte*)m_controllers + i);
 		}
 	}
 }
