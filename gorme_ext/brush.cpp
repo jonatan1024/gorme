@@ -5,6 +5,7 @@
 #include "smsdk_ext.h"
 #include "entfilter.h"
 #include "callqueue.h"
+#include "vscript_fun.h"
 
 extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
@@ -12,6 +13,7 @@ extern CDownloader * g_pDownloader;
 extern IServerTools * g_pServerTools;
 extern CEntFilter * g_pEntFilter;
 extern CCallQueue * g_pCallQueue;
+extern CVsfun * g_pVsfun;
 
 CFace::CFace() {
 	strcpy(m_material, g_pGormeConfig->GetString("defaultMaterial", "debug/debugempty"));
@@ -51,9 +53,20 @@ void CFace::InitUV(bool faceAlign) {
 	__asm{nop}
 }
 
-void CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
-	Assert(!m_brushFlags.IsFlagSet(BFL_LOCK));
+CBrush::CBrush() : m_mdlent(NULL) {
+	m_mdlfile[0] = '\0';
+}
+
+bool CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
+	if(m_brushFlags.IsFlagSet(BFL_LOCK))
+		return false;
 	m_brushFlags.SetFlag(BFL_LOCK);
+	//destroy old mdl
+	if(m_mdlent) {
+		g_pVsfun->CallFunction("CBaseEntity", "ScriptUtilRemove", m_mdlent, NULL);
+		m_mdlent = NULL;
+	}
+
 	CUtlVector<CFace> oldfaces;
 	oldfaces = m_faces;
 	int numTmpFaces = tmpBrush->GetNumFaces();
@@ -78,26 +91,22 @@ void CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
 		tmpBrush->GetFacePoints(i, m_faces[index].m_triangles.Base() + tail);
 	}
 	m_center = tmpBrush->GetCenter();
-
-	m_brushFlags.SetFlag(BFL_MDLCOMPILE);
 	g_pMdlCompile->Compile(this);
+	return true;
 }
 
 
 void CBrush::OnMdlReady() {
-	printf("'%s'\n", m_mdlfile);
+	engine->PrecacheModel(m_mdlfile);
+	m_mdlent = (CBaseEntity*)g_pServerTools->CreateEntityByName(g_pGormeConfig->GetString("mdlEntType", "prop_dynamic"));
+	g_pServerTools->SetKeyValue(m_mdlent, "model", m_mdlfile);
+	g_pServerTools->SetKeyValue(m_mdlent, "solid", "6");
+	g_pServerTools->DispatchSpawn(m_mdlent);
 	m_brushFlags.ClearFlag(BFL_LOCK);
 	m_brushFlags.SetFlag(BFL_READY);
-
-	engine->PrecacheModel(m_mdlfile);
-	void * m_entity = g_pServerTools->CreateEntityByName("prop_dynamic");
-	g_pServerTools->SetKeyValue(m_entity, "model", m_mdlfile);
-	g_pServerTools->SetKeyValue(m_entity, "solid", "6");
-	g_pServerTools->DispatchSpawn(m_entity);
 }
 
 void CBrush::OnMdlCompiled(CUtlString mdlfile) {
-	m_brushFlags.ClearFlag(BFL_MDLCOMPILE);
 	strcpy(m_mdlfile, mdlfile);
 	CUtlVector<CUtlString> files;
 

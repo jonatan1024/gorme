@@ -32,8 +32,7 @@ void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * call
 				m_lastId++;
 			}
 			else {
-				assert(0);
-				//todo error
+				smutils->LogError(myself, "CDownloader::SendFiles -> SendFile(%s) failed!\n", files[iFile]);
 			}
 		}
 	}

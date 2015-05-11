@@ -1,9 +1,10 @@
 #pragma once
 #include <UtlStringMap.h>
+#include <vscript/ivscript.h>
 
-struct ScriptFunctionBinding_t;
-struct ScriptVariant_t;
-struct ScriptClassDesc_t;
+//struct ScriptFunctionBinding_t;
+//struct ScriptVariant_t;
+//struct ScriptClassDesc_t;
 
 class CVsfun {
 public:

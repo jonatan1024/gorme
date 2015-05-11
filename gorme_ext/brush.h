@@ -29,15 +29,14 @@ private:
 enum _brushFlags {
 	BFL_READY = 1 << 0,
 	BFL_LOCK = 1 << 1,
-	BFL_MDLCOMPILE = 1 << 2,
-	BFL_MDLREADY = 1 << 3,
 };
 
 class CBrush {
 	friend class CMdlCompile;
 	friend class CCompileThread;
 public:
-	void ApplyTmpBrush(CTmpBrush * tmpBrush);
+	CBrush();
+	bool ApplyTmpBrush(CTmpBrush * tmpBrush);
 	bool GetFlag(int flag) {
 		return m_brushFlags.IsFlagSet(flag);
 	}
@@ -49,4 +48,5 @@ private:
 	CUtlVector<CFace> m_faces;
 	CUtlFlags<int> m_brushFlags;
 	char m_mdlfile[MAX_PATH];
+	CBaseEntity * m_mdlent;
 };

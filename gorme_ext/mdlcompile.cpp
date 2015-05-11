@@ -5,6 +5,7 @@
 #include <vtf/vtf.h>
 #include <threadtools.h>
 #include "callqueue.h"
+#include "smsdk_ext.h"
 
 extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
@@ -211,11 +212,10 @@ void CMdlCompile::CompileQC(const char * filename) {
 			wait += 1000; //1s
 		} while(--attempsLeft);
 		if(errorCode != 0) {
-			__asm{nop}
-			//todo error
+			smutils->LogError(myself, "CMdlCompile::CompileQC -> system(%s) returned nonzero!", command);
 		}
 	}
 	else {
-		//todo error
+		smutils->LogError(myself, "CMdlCompile::CompileQC -> mdlCompiler is null!");
 	}
 }

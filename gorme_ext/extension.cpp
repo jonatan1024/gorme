@@ -45,28 +45,29 @@ SH_DECL_HOOK3_void(IServerGameEnts, CheckTransmit, SH_NOATTRIB, 0, CCheckTransmi
 SH_DECL_HOOK2(IBaseFileSystem, FileExists, SH_NOATTRIB, 0, bool, const char *, const char *);
 
 bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool late) {
-	//todo error msgs?
+	IScriptVM * svm;
+
 	GET_V_IFACE_ANY(GetPhysicsFactory, g_pPhysicsCollision, IPhysicsCollision, VPHYSICS_COLLISION_INTERFACE_VERSION);
 	if(!g_pPhysicsCollision)
-		return false;
+		goto SDK_OnMetamodLoad_failed;
 	GET_V_IFACE_ANY(GetServerFactory, g_pServerTools, IServerTools, VSERVERTOOLS_INTERFACE_VERSION);
 	if(!g_pServerTools)
-		return false;
+		goto SDK_OnMetamodLoad_failed;
 	GET_V_IFACE_ANY(GetEngineFactory, g_pScriptManager, IScriptManager, VSCRIPT_INTERFACE_VERSION);
 	if(!g_pScriptManager)
-		return false;
+		goto SDK_OnMetamodLoad_failed;
 	GET_V_IFACE_ANY(GetFileSystemFactory, g_pFullFileSystem, IFileSystem, FILESYSTEM_INTERFACE_VERSION);
 	if(!g_pFullFileSystem)
-		return false;
+		goto SDK_OnMetamodLoad_failed;
 	GET_V_IFACE_ANY(GetServerFactory, g_pServerGameEnts, IServerGameEnts, INTERFACEVERSION_SERVERGAMEENTS);
 	if(!g_pServerGameEnts)
-		return false;
+		goto SDK_OnMetamodLoad_failed;
 
 	g_pVsfun = new CVsfun();
 	g_pEntFilter = new CEntFilter();
 	g_pDownloader = new CDownloader();
 
-	IScriptVM * svm = g_pScriptManager->CreateVM();
+	svm = g_pScriptManager->CreateVM();
 	hookIds.AddToTail(SH_ADD_VPHOOK(IScriptVM, RegisterFunction, svm, SH_MEMBER(g_pVsfun, &CVsfun::OnRegisterFunction), true));
 	hookIds.AddToTail(SH_ADD_VPHOOK(IScriptVM, RegisterClass, svm, SH_MEMBER(g_pVsfun, &CVsfun::OnRegisterClass), true));
 	g_pScriptManager->DestroyVM(svm);
@@ -74,6 +75,20 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameEnts, CheckTransmit, g_pServerGameEnts, SH_MEMBER(g_pEntFilter, &CEntFilter::OnCheckTransmit), true));
 	hookIds.AddToTail(SH_ADD_VPHOOK(IBaseFileSystem, FileExists, g_pFullFileSystem, SH_MEMBER(g_pDownloader, &CDownloader::OnFileExists), false));
 	return true;
+
+SDK_OnMetamodLoad_failed:
+	smutils->LogError(myself, "CGorme::SDK_OnMetamodLoad");
+	if(!g_pPhysicsCollision)
+		smutils->LogError(myself, "g_pPhysicsCollision is null!");
+	else if(!g_pServerTools)
+		smutils->LogError(myself, "g_pServerTools is null!");
+	else if(!g_pScriptManager)
+		smutils->LogError(myself, "g_pScriptManager is null!");
+	else if(!g_pFullFileSystem)
+		smutils->LogError(myself, "g_pFullFileSystem is null!");
+	else if(!g_pServerGameEnts)
+		smutils->LogError(myself, "g_pServerGameEnts is null!");
+	return false;
 }
 
 void CGorme::SDK_OnUnload() {

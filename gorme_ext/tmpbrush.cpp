@@ -117,6 +117,7 @@ void CTmpBrush::Refresh() {
 		m_tmpTriangles[i].SetPoints(triPts);
 		//refresh helpers
 		//todo finish
+		//finishing - find best dot product; you also should modify helpers when rotating/scaling to avoid errors
 		ComputeTriangleNormal(*triPts[0], *triPts[1], *triPts[2], m_helpers[i].normal);
 		m_helpers[i].index = -1;
 	}
