@@ -2,3 +2,5 @@ gorme_ext/msvc12/*/
 *.suo
 *.sdf
 *.opensdf
+cfg/gorme.cfg.symlink
+*.vcxproj.user
