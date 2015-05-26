@@ -16,6 +16,9 @@
 class CGorme : public SDKExtension
 {
 public:
+	void OnGameFrame(bool simulating);
+	void OnGameFrame_post(bool simulating);
+
 	/**
 	 * @brief This is called after the initial loading sequence has been processed.
 	 *
@@ -50,7 +53,6 @@ public:
 	 * @return			True if working, false otherwise.
 	 */
 	//virtual bool QueryRunning(char *error, size_t maxlength);
-	void OnGameFrame(bool simulating);
 public:
 #if defined SMEXT_CONF_METAMOD
 	/**

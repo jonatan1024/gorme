@@ -83,7 +83,7 @@ inline const Vector& GetPolygonVertex(CPolyhedron * polyhedron, const Polyhedron
 	return polyhedron->pVertices[vertexIndex];
 }
 
-void CTmpBrush::GetFacePoints(int i, Vector points[3]) {
+void CTmpBrush::GetFacePoints(int i, Vector points[3]) const {
 	const int order[3] = {1, 0, 2};
 	const Polyhedron_IndexedPolygon_t& polygon = m_polyhedron->pPolygons[i];
 	for(int j = 0; j < 3; j++)
@@ -91,7 +91,7 @@ void CTmpBrush::GetFacePoints(int i, Vector points[3]) {
 }
 
 
-Vector CTmpBrush::GetCenter() {
+Vector CTmpBrush::GetCenter() const {
 	Vector center(0, 0, 0);
 	for(int i = 0; i < m_polyhedron->iVertexCount; i++) {
 		center += m_polyhedron->pVertices[i];

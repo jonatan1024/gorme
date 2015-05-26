@@ -57,7 +57,7 @@ CBrush::CBrush() : m_mdlent(NULL) {
 	m_mdlfile[0] = '\0';
 }
 
-bool CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
+bool CBrush::ApplyTmpBrush(const CTmpBrush & tmpBrush) {
 	if(m_brushFlags.IsFlagSet(BFL_LOCK))
 		return false;
 	m_brushFlags.SetFlag(BFL_LOCK);
@@ -69,28 +69,28 @@ bool CBrush::ApplyTmpBrush(CTmpBrush * tmpBrush) {
 
 	CUtlVector<CFace> oldfaces;
 	oldfaces = m_faces;
-	int numTmpFaces = tmpBrush->GetNumFaces();
+	int numTmpFaces = tmpBrush.GetNumFaces();
 	int numNewFaces = 0;
 	m_faces.RemoveAll();
 	for(int i = 0; i < numTmpFaces; i++) {
-		TmpFaceHelper_t * helper = tmpBrush->GetFaceHelper(i);
+		const TmpFaceHelper_t & helper = tmpBrush.GetFaceHelper(i);
 		int index;
 		for(index = 0; index < numNewFaces; index++)
-			if(-helper->normal == m_faces[index].m_normal)
+			if(-helper.normal == m_faces[index].m_normal)
 				break;
 		if(index == numNewFaces) {
 			m_faces.InsertBefore(numNewFaces);
-			if(helper->index >= 0) {
-				m_faces[index] = oldfaces[helper->index];
+			if(helper.index >= 0) {
+				m_faces[index] = oldfaces[helper.index];
 			}
-			m_faces[index].m_normal = -helper->normal;
+			m_faces[index].m_normal = -helper.normal;
 			m_faces[index].InitUV();
 			numNewFaces++;
 		}
 		int tail = m_faces[index].m_triangles.AddMultipleToTail(3);
-		tmpBrush->GetFacePoints(i, m_faces[index].m_triangles.Base() + tail);
+		tmpBrush.GetFacePoints(i, m_faces[index].m_triangles.Base() + tail);
 	}
-	m_center = tmpBrush->GetCenter();
+	m_center = tmpBrush.GetCenter();
 	g_pMdlCompile->Compile(this);
 	return true;
 }
@@ -102,6 +102,8 @@ void CBrush::OnMdlReady() {
 	g_pServerTools->SetKeyValue(m_mdlent, "model", m_mdlfile);
 	g_pServerTools->SetKeyValue(m_mdlent, "solid", "6");
 	g_pServerTools->DispatchSpawn(m_mdlent);
+	ScriptVariant_t origin = m_center;
+	g_pVsfun->CallFunction("CBaseEntity", "ScriptSetOrigin", m_mdlent, &origin);
 	m_brushFlags.ClearFlag(BFL_LOCK);
 	m_brushFlags.SetFlag(BFL_READY);
 }

@@ -76,7 +76,6 @@ CMdlCompile::CMdlCompile() {
 }
 
 CMdlCompile::~CMdlCompile() {
-	
 	m_threadHandles.Lock();
 	FOR_EACH_VEC(m_threadHandles, it) {
 		ThreadJoin(m_threadHandles[it]);

@@ -2,17 +2,28 @@
 #include "smsdk_ext.h"
 #include <inetchannel.h>
 #include <inetmsghandler.h>
+#include <networkstringtabledefs.h>
+
+extern INetworkStringTableContainer * g_pNSTC;
 
 bool uintCmp(const unsigned int& u1, const unsigned int& u2) {
 	return u1 < u2;
 }
 
 CDownloader::CDownloader() : m_lastId(0), m_ofeFalseNegative(false) {
-
+	m_downloadTable = g_pNSTC->FindTable("downloadables");
+	if(!m_downloadTable)
+		smutils->LogError(myself, "CDownloader::CDownloader -> INetworkStringTableContainer::FindTable(downloadables) returned null!");
 }
 
 CDownloader::~CDownloader() {
 
+}
+
+void CDownloader::AddStaticDownload(const char * file) {
+	if(m_downloadTable->FindStringIndex(file) == INVALID_STRING_INDEX) {
+		m_downloadTable->AddString(true, file);
+	}
 }
 
 void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * callback) {
@@ -32,11 +43,13 @@ void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * call
 				m_lastId++;
 			}
 			else {
-				smutils->LogError(myself, "CDownloader::SendFiles -> SendFile(%s) failed!\n", files[iFile]);
+				smutils->LogError(myself, "CDownloader::SendFiles -> SendFile(%s) failed!", files[iFile]);
 			}
 		}
 	}
 	m_jobs.AddToTail(job);
+	FOR_EACH_VEC(files, iFile)
+		AddStaticDownload(files[iFile]);
 }
 
 void CDownloader::Tick() {

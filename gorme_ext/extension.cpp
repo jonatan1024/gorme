@@ -11,6 +11,7 @@
 #include "downloader.h"
 #include "callqueue.h"
 #include "entfilter.h"
+#include <networkstringtabledefs.h>
 
 CGorme g_Gorme;
 SMEXT_LINK(&g_Gorme);
@@ -18,6 +19,7 @@ SMEXT_LINK(&g_Gorme);
 IServerTools * g_pServerTools = NULL;
 IScriptManager * g_pScriptManager = NULL;
 IServerGameEnts * g_pServerGameEnts = NULL;
+INetworkStringTableContainer * g_pNSTC = NULL;
 
 CVsfun * g_pVsfun = NULL;
 KeyValues * g_pGormeConfig = NULL;
@@ -34,6 +36,8 @@ bool CGorme::SDK_OnLoad(char *error, size_t maxlength, bool late) {
 	g_pGormeConfig->LoadFromFile(g_pFullFileSystem, "cfg/sourcemod/gorme.cfg");
 	g_pMdlCompile = new CMdlCompile();
 	g_pCallQueue = new CCallQueue();
+
+	g_pDownloader->AddStaticDownload(g_pGormeConfig->GetString("triangleModel", "models/gorme/triangle.mdl"));
 	return true;
 }
 
@@ -62,6 +66,9 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	GET_V_IFACE_ANY(GetServerFactory, g_pServerGameEnts, IServerGameEnts, INTERFACEVERSION_SERVERGAMEENTS);
 	if(!g_pServerGameEnts)
 		goto SDK_OnMetamodLoad_failed;
+	GET_V_IFACE_ANY(GetEngineFactory, g_pNSTC, INetworkStringTableContainer, INTERFACENAME_NETWORKSTRINGTABLESERVER);
+	if(!g_pNSTC)
+		goto SDK_OnMetamodLoad_failed;
 
 	g_pVsfun = new CVsfun();
 	g_pEntFilter = new CEntFilter();
@@ -72,6 +79,7 @@ bool CGorme::SDK_OnMetamodLoad(ISmmAPI *ismm, char *error, size_t maxlen, bool l
 	hookIds.AddToTail(SH_ADD_VPHOOK(IScriptVM, RegisterClass, svm, SH_MEMBER(g_pVsfun, &CVsfun::OnRegisterClass), true));
 	g_pScriptManager->DestroyVM(svm);
 	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameDLL, GameFrame, gamedll, SH_MEMBER(this, &CGorme::OnGameFrame), false));
+	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameDLL, GameFrame, gamedll, SH_MEMBER(this, &CGorme::OnGameFrame_post), true));
 	hookIds.AddToTail(SH_ADD_VPHOOK(IServerGameEnts, CheckTransmit, g_pServerGameEnts, SH_MEMBER(g_pEntFilter, &CEntFilter::OnCheckTransmit), true));
 	hookIds.AddToTail(SH_ADD_VPHOOK(IBaseFileSystem, FileExists, g_pFullFileSystem, SH_MEMBER(g_pDownloader, &CDownloader::OnFileExists), false));
 	return true;
@@ -88,6 +96,8 @@ SDK_OnMetamodLoad_failed:
 		smutils->LogError(myself, "g_pFullFileSystem is null!");
 	else if(!g_pServerGameEnts)
 		smutils->LogError(myself, "g_pServerGameEnts is null!");
+	else if(!g_pNSTC)
+		smutils->LogError(myself, "g_pNSTC is null!");
 	return false;
 }
 
@@ -103,41 +113,40 @@ void CGorme::SDK_OnUnload() {
 }
 
 void CGorme::OnGameFrame(bool simulating) {
+	g_tickMutex.Unlock();
 	g_pDownloader->Tick();
 	(*g_pCallQueue)();
-	g_tickMutex.Unlock();
-	ThreadSleep(1);
+	RETURN_META(MRES_HANDLED);
+}
+
+void CGorme::OnGameFrame_post(bool simulating) {
 	g_tickMutex.Lock();
 	RETURN_META(MRES_HANDLED);
 }
 
+
+
 cell_t GormeTest(IPluginContext *pContext, const cell_t *params) {
-	CTmpBrush tmpbrush;
-	Vector points[] = {
-		Vector(-8, -8, -8),
-		Vector(8, -8, -8),
-		Vector(-8, 8, -8),
-		Vector(8, 8, -8),
-		Vector(-8, -8, 8),
-		Vector(8, -8, 8),
-		Vector(-8, 8, 8),
-		Vector(8, 8, 8),
-	};
-	for(int i = 0; i < 1; i++) {
-		tmpbrush.SetPoints(points, 8);
-		auto brush = new CBrush();
-		brush->ApplyTmpBrush(&tmpbrush);
-		for(int j = 0; j < 8; j++) {
-			Vector random;
-			random.Random(-8, 8);
-			points[j] += random;
-		}
+	for(int i = 0; i < 1000; i++) {
+		CTmpBrush t;
+		Vector pts[] = {
+			Vector(0, 0, 0),
+			Vector(8, 0, 0),
+			Vector(0, 8, 0),
+			Vector(8, 8, 0),
+			Vector(0, 0, 8*i),
+			Vector(8, 0, 8*i),
+			Vector(0, 8, 8*i),
+			Vector(8, 8, 8*i),
+		};
+		t.SetPoints(pts, 4);
+		auto br = new CBrush();
+		br->ApplyTmpBrush(t);
 	}
 	return 0;
 }
 
 cell_t GormeTest2(IPluginContext *pContext, const cell_t *params) {
-	g_pEntFilter->ClearAll();
 	return 0;
 }
 

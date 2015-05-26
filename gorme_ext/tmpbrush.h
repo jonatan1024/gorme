@@ -31,10 +31,10 @@ public:
 	~CTmpBrush();
 	bool SetPoints(const Vector * points, int ptsCnt);
 	bool SetPolyhedron(CPolyhedron * m_polyhedron);
-	int GetNumFaces() { return m_numFaces; }
-	TmpFaceHelper_t * GetFaceHelper(int i) { return &m_helpers[i]; }
-	void GetFacePoints(int index, Vector points[3]);
-	Vector GetCenter();
+	int GetNumFaces() const { return m_numFaces; }
+	const TmpFaceHelper_t & GetFaceHelper(int i) const { return m_helpers[i]; }
+	void GetFacePoints(int index, Vector points[3]) const;
+	Vector GetCenter() const;
 private:
 	void Refresh();
 	int m_numFaces;

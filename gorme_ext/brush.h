@@ -36,7 +36,7 @@ class CBrush {
 	friend class CCompileThread;
 public:
 	CBrush();
-	bool ApplyTmpBrush(CTmpBrush * tmpBrush);
+	bool ApplyTmpBrush(const CTmpBrush & tmpBrush);
 	bool GetFlag(int flag) {
 		return m_brushFlags.IsFlagSet(flag);
 	}

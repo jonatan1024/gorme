@@ -7,8 +7,10 @@
 #include <tier1/UtlStringMap.h>
 #include <tier1/utlflags.h>
 
+
 class INetChannel;
 class INetChannelHandler;
+class INetworkStringTable;
 class CDownloader {
 private:
 	struct TJob {
@@ -34,9 +36,10 @@ public:
 	void SendFiles(const CUtlVector<CUtlString>& files, CFunctor * callback);
 	bool OnFileExists(const char *file, const char * path);
 	bool IsFileInQueue(INetChannel * channel, const char * file);
+	void AddStaticDownload(const char * file);
 private:
 	unsigned int m_lastId;
-	
+	INetworkStringTable * m_downloadTable;
 	CUtlVector<TJob*> m_jobs;
 	CUtlLinkedList<TDownload> m_downloads;
 	const char * m_ofeFalseNegative;
