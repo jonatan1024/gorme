@@ -1244,17 +1244,20 @@
     <ClCompile Include="..\callqueue.cpp" />
     <ClCompile Include="..\downloader.cpp" />
     <ClCompile Include="..\entfilter.cpp" />
+    <ClCompile Include="..\entity.cpp" />
     <ClCompile Include="..\extension.cpp" />
     <ClCompile Include="$(SOURCEMOD)\public\smsdk_ext.cpp" />
     <ClCompile Include="..\brush.cpp" />
     <ClCompile Include="..\mdlcompile.cpp" />
     <ClCompile Include="..\tmpbrush.cpp" />
     <ClCompile Include="..\vscript_fun.cpp" />
+    <ClCompile Include="..\world.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\callqueue.h" />
     <ClInclude Include="..\downloader.h" />
     <ClInclude Include="..\entfilter.h" />
+    <ClInclude Include="..\entity.h" />
     <ClInclude Include="..\extension.h" />
     <ClInclude Include="..\brush.h" />
     <ClInclude Include="..\mdlcompile.h" />
@@ -1262,6 +1265,7 @@
     <ClInclude Include="$(SOURCEMOD)\public\smsdk_ext.h" />
     <ClInclude Include="..\tmpbrush.h" />
     <ClInclude Include="..\vscript_fun.h" />
+    <ClInclude Include="..\world.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\cfg\gorme.cfg" />

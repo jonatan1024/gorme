@@ -17,8 +17,25 @@ extern CVsfun * g_pVsfun;
 
 CFace::CFace() {
 	strcpy(m_material, g_pGormeConfig->GetString("defaultMaterial", "debug/debugempty"));
-	m_hammerId = -1;
 	memset(m_uv, 0, 2 * sizeof(VPlane));
+}
+
+CFace::CFace(KeyValues * kv) {
+	strcpy(m_material, kv->GetString("material", g_pGormeConfig->GetString("defaultMaterial", "debug/debugempty")));
+	memset(m_uv, 0, 2 * sizeof(VPlane));
+	for(char axisname[] = "uaxis"; axisname[0] <= 'v'; axisname[0]++) {
+		VPlane & axis = m_uv[axisname[0] - 'u'];
+		const char * szAxis = kv->GetString(axisname);
+		float scale = 1.f;
+		auto a = sscanf(szAxis, "[%f %f %f %f] %f", &axis.m_Normal.x, &axis.m_Normal.y, &axis.m_Normal.z, &axis.m_Dist, &scale);
+		axis.m_Normal /= scale;
+		axis.m_Dist /= scale;
+	}
+}
+
+CFace::CFace(const CFace & o) {
+	memcpy(this, &o, sizeof(CFace));
+	m_triangles = o.m_triangles;
 }
 
 void CFace::InitUV(bool faceAlign) {
@@ -57,6 +74,47 @@ CBrush::CBrush() : m_mdlent(NULL) {
 	m_mdlfile[0] = '\0';
 }
 
+
+
+CBrush::CBrush(KeyValues * kv) : m_mdlent(NULL) {
+	m_mdlfile[0] = '\0';
+
+	CTmpBrush tmpbrush(false);
+	CUtlVector<VPlane> planes;
+	FOR_EACH_TRUE_SUBKEY(kv, subkey) {
+		const char * name = subkey->GetName();
+		if(!V_strcasecmp(name, "side")) {
+			const char * szPlane = subkey->GetString("plane");
+			Vector pts[3];
+			sscanf(szPlane, "(%f %f %f) (%f %f %f) (%f %f %f)",
+				&pts[0].x, &pts[0].y, &pts[0].z,
+				&pts[1].x, &pts[1].y, &pts[1].z,
+				&pts[2].x, &pts[2].y, &pts[2].z);
+			Vector normal;
+			float dist;
+			ComputeTrianglePlane(pts[0], pts[1], pts[2], normal, dist);
+			planes.AddToTail(VPlane(-normal, -dist));
+
+			tmpbrush.AddHelper(TTmpFaceHelper(-normal, m_faces.Count()));
+
+			m_faces.AddToTail(CFace(subkey));
+		}
+	}
+	tmpbrush.SetPlanes(planes.Base(), planes.Count());
+	ApplyTmpBrush(tmpbrush);
+}
+
+CBrush::~CBrush() {
+	assert(!m_brushFlags.IsFlagSet(BFL_LOCK));
+	if(m_brushFlags.IsFlagSet(BFL_LOCK)) {
+		smutils->LogError(myself, "CBrush::~CBrush -> BFL_LOCK is set in m_brushFlags!");
+	}
+	if(m_mdlent) {
+		g_pVsfun->CallFunction("CBaseEntity", "ScriptUtilRemove", m_mdlent, NULL);
+		m_mdlent = NULL;
+	}
+}
+
 bool CBrush::ApplyTmpBrush(const CTmpBrush & tmpBrush) {
 	if(m_brushFlags.IsFlagSet(BFL_LOCK))
 		return false;
@@ -73,18 +131,20 @@ bool CBrush::ApplyTmpBrush(const CTmpBrush & tmpBrush) {
 	int numNewFaces = 0;
 	m_faces.RemoveAll();
 	for(int i = 0; i < numTmpFaces; i++) {
-		const TmpFaceHelper_t & helper = tmpBrush.GetFaceHelper(i);
+		const TTmpFaceHelper & helper = tmpBrush.GetFaceHelper(i);
 		int index;
 		for(index = 0; index < numNewFaces; index++)
-			if(-helper.normal == m_faces[index].m_normal)
+			if(helper.normal == m_faces[index].m_normal)
 				break;
 		if(index == numNewFaces) {
 			m_faces.InsertBefore(numNewFaces);
 			if(helper.index >= 0) {
 				m_faces[index] = oldfaces[helper.index];
 			}
-			m_faces[index].m_normal = -helper.normal;
-			m_faces[index].InitUV();
+			else {
+				m_faces[index].m_normal = helper.normal;
+				m_faces[index].InitUV();
+			}
 			numNewFaces++;
 		}
 		int tail = m_faces[index].m_triangles.AddMultipleToTail(3);
@@ -96,7 +156,7 @@ bool CBrush::ApplyTmpBrush(const CTmpBrush & tmpBrush) {
 }
 
 
-void CBrush::OnMdlReady() {
+void CBrush::SpawnModel() {
 	engine->PrecacheModel(m_mdlfile);
 	m_mdlent = (CBaseEntity*)g_pServerTools->CreateEntityByName(g_pGormeConfig->GetString("mdlEntType", "prop_dynamic"));
 	g_pServerTools->SetKeyValue(m_mdlent, "model", m_mdlfile);
@@ -133,7 +193,7 @@ void CBrush::OnMdlCompiled(CUtlString mdlfile) {
 		if(uniq)
 			files.AddToTail(matfile);
 	}
-	g_pDownloader->SendFiles(files, CreateFunctor(this, &CBrush::OnMdlReady));
+	g_pDownloader->SendFiles(files, CreateFunctor(this, &CBrush::SpawnModel));
 }
 
 void CFace::Hash(CRC32_t* crc) {

@@ -9,6 +9,8 @@
 #include <checksum_crc.h>
 class CCompileThread;
 
+class KeyValues;
+
 class CBrush;
 class CFace {
 	friend class CBrush;
@@ -16,6 +18,8 @@ class CFace {
 	friend class CCompileThread;
 public:
 	CFace();
+	CFace(KeyValues * kv);
+	CFace(const CFace &);
 	void InitUV(bool faceAlign = false);
 	void Hash(CRC32_t* crc);
 private:
@@ -23,7 +27,6 @@ private:
 	CUtlVector<Vector> m_triangles;
 	char m_material[MAX_PATH];
 	VPlane m_uv[2];
-	int m_hammerId;
 };
 
 enum _brushFlags {
@@ -36,13 +39,17 @@ class CBrush {
 	friend class CCompileThread;
 public:
 	CBrush();
+	CBrush(KeyValues *);
+	~CBrush();
+	CBrush(const CBrush&) = delete;
+	CBrush& operator=(const CBrush&) = delete;
 	bool ApplyTmpBrush(const CTmpBrush & tmpBrush);
 	bool GetFlag(int flag) {
 		return m_brushFlags.IsFlagSet(flag);
 	}
 	CRC32_t Hash();
 	void OnMdlCompiled(CUtlString mdlfile);
-	void OnMdlReady();
+	void SpawnModel();
 private:
 	Vector m_center;
 	CUtlVector<CFace> m_faces;

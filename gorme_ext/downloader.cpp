@@ -11,6 +11,10 @@ bool uintCmp(const unsigned int& u1, const unsigned int& u2) {
 }
 
 CDownloader::CDownloader() : m_lastId(0), m_ofeFalseNegative(false) {
+	RefreshDT();
+}
+
+void CDownloader::RefreshDT() {
 	m_downloadTable = g_pNSTC->FindTable("downloadables");
 	if(!m_downloadTable)
 		smutils->LogError(myself, "CDownloader::CDownloader -> INetworkStringTableContainer::FindTable(downloadables) returned null!");
@@ -26,6 +30,10 @@ void CDownloader::AddStaticDownload(const char * file) {
 	}
 }
 
+bool CDownloader::IsDownloadStatic(const char * file) {
+	return m_downloadTable->FindStringIndex(file) != INVALID_STRING_INDEX;
+}
+
 void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * callback) {
 	TJob * job = new TJob(callback);
 	int numFiles = files.Count();
@@ -36,6 +44,8 @@ void CDownloader::SendFiles(const CUtlVector<CUtlString>& files, CFunctor * call
 			continue;
 		for(int iFile = 0; iFile < numFiles; iFile++) {
 			if(IsFileInQueue(chan, files[iFile]))
+				continue;
+			if(IsDownloadStatic(files[iFile]))
 				continue;
 			if(chan->SendFile(files[iFile], m_lastId, false)) {
 				job->m_remaining++;

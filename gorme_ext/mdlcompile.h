@@ -20,7 +20,6 @@ public:
 	~CMdlCompile();
 	void Compile(CBrush * brush);
 private:
-	void CompileDone();
 	const char * GetMaterialTexture(const char * material);
 	void CreateMaterial(const char * material);
 	void WriteSMD(const char * filename, const CBrush * brush);
@@ -29,11 +28,16 @@ private:
 	const texDims_t& CMdlCompile::GetTexDims(const char * material);
 	void GetVertexUV(const CFace& face, const Vector& vertex, float* vertexUV);
 
-	CThreadSemaphore * m_numThreads;
+	friend unsigned CompileThread(void * vhptr);
+
+	int m_maxThreads;
+	CInterlockedInt m_numThreads;
+	CUtlQueue<CBrush*> m_brushQueue;
+	CThreadMutex m_brushQueueMutex;
+
 	CThreadMutex m_createMaterialMutex;
 	CThreadMutex m_matTexMutex;
 	CUtlStringMap<CUtlString> m_matTex;
 	CThreadMutex m_texDimsMutex;
 	CUtlStringMap<texDims_t> m_texDims;
-	CUtlVectorMT<CUtlVector<ThreadHandle_t>> m_threadHandles;
 };

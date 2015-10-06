@@ -37,6 +37,8 @@ public:
 	bool OnFileExists(const char *file, const char * path);
 	bool IsFileInQueue(INetChannel * channel, const char * file);
 	void AddStaticDownload(const char * file);
+	bool IsDownloadStatic(const char * file);
+	void RefreshDT();
 private:
 	unsigned int m_lastId;
 	INetworkStringTable * m_downloadTable;

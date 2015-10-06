@@ -13,11 +13,12 @@
  * @brief Sample implementation of the SDK Extension.
  * Note: Uncomment one of the pre-defined virtual functions in order to use it.
  */
-class CGorme : public SDKExtension
-{
+class KeyValues;
+class CGorme : public SDKExtension {
 public:
 	void OnGameFrame(bool simulating);
 	void OnGameFrame_post(bool simulating);
+	bool OnLevelInit(char const *pMapName, char const *pMapEntities, char const *pOldLevel, char const *pLandmarkName, bool loadGame, bool background);
 
 	/**
 	 * @brief This is called after the initial loading sequence has been processed.
@@ -28,7 +29,7 @@ public:
 	 * @return			True to succeed loading, false to fail.
 	 */
 	virtual bool SDK_OnLoad(char *error, size_t maxlength, bool late);
-	
+
 	/**
 	 * @brief This is called right before the extension is unloaded.
 	 */

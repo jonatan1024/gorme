@@ -101,11 +101,12 @@ Vector CTmpBrush::GetCenter() const {
 }
 
 void CTmpBrush::Refresh() {
-	CUtlVector<TmpFaceHelper_t> oldhelpers;
+	CUtlVector<TTmpFaceHelper> oldhelpers;
 	oldhelpers = m_helpers;
 
 	m_numFaces = m_polyhedron->iPolygonCount;
-	m_tmpTriangles.SetCountNonDestructively(m_numFaces);
+	if(m_visible)
+		m_tmpTriangles.SetCountNonDestructively(m_numFaces);
 	m_helpers.SetCountNonDestructively(m_numFaces);
 	for(int i = 0; i < m_numFaces; i++) {
 		const Polyhedron_IndexedPolygon_t& polygon = m_polyhedron->pPolygons[i];
@@ -114,39 +115,53 @@ void CTmpBrush::Refresh() {
 		for(int j = 0; j < 3; j++) {
 			triPts[j] = &GetPolygonVertex(m_polyhedron, polygon, j);
 		}
-		m_tmpTriangles[i].SetPoints(triPts);
-		//refresh helpers
-		//todo finish
-		//finishing - find best dot product; you also should modify helpers when rotating/scaling to avoid errors
+		if(m_visible)
+			m_tmpTriangles[i].SetPoints(triPts);
+		//todo - we should modify helpers when rotating/scaling to avoid errors
 		ComputeTriangleNormal(*triPts[0], *triPts[1], *triPts[2], m_helpers[i].normal);
+		m_helpers[i].normal = -m_helpers[i].normal;
+		float bestdot = -1.0;
 		m_helpers[i].index = -1;
+		FOR_EACH_VEC(oldhelpers, it) {
+			float dot = DotProduct(oldhelpers[it].normal, m_helpers[i].normal);
+			if(dot > bestdot) {
+				bestdot = dot;
+				m_helpers[i].index = oldhelpers[it].index;
+			}
+		}
 	}
 }
 
 bool CTmpBrush::SetPoints(const Vector * points, int ptsCnt) {
-	//prepare polyhedron
-	{
-		const Vector ** ptrPts = new const Vector*[ptsCnt];
-		for(int i = 0; i < ptsCnt; i++)
-			ptrPts[i] = &points[i];
-		CPhysConvex * convex = g_pPhysicsCollision->ConvexFromVerts((Vector**)ptrPts, ptsCnt);
-		delete ptrPts;
-		if(!convex)
-			return false;
-		if(!g_pPhysicsCollision->ConvexVolume(convex))
-			return false;
-		m_polyhedron = g_pPhysicsCollision->PolyhedronFromConvex(convex, false);
-		if(!m_polyhedron)
-			return false;
-	}
-	Refresh();
-	return true;
+	const Vector ** ptrPts = new const Vector*[ptsCnt];
+	for(int i = 0; i < ptsCnt; i++)
+		ptrPts[i] = &points[i];
+	CPhysConvex * convex = g_pPhysicsCollision->ConvexFromVerts((Vector**)ptrPts, ptsCnt);
+	delete ptrPts;
+	return SetConvex(convex);
 }
 
-bool CTmpBrush::SetPolyhedron(CPolyhedron * polyhedron) {
-	if(!polyhedron)
+bool CTmpBrush::SetPlanes(const VPlane * planes, int plnCnt) {
+	float * fplanes = new float[plnCnt * 4];
+	for(int i = 0; i < plnCnt; i++) {
+		fplanes[i * 4 + 0] = planes[i].m_Normal.x;
+		fplanes[i * 4 + 1] = planes[i].m_Normal.y;
+		fplanes[i * 4 + 2] = planes[i].m_Normal.z;
+		fplanes[i * 4 + 3] = planes[i].m_Dist;
+	}
+	CPhysConvex * convex = g_pPhysicsCollision->ConvexFromPlanes(fplanes, plnCnt, 0.f);
+	delete fplanes;
+	return SetConvex(convex);
+}
+
+bool CTmpBrush::SetConvex(CPhysConvex * convex) {
+	if(!convex)
 		return false;
-	m_polyhedron = polyhedron;
+	if(g_pPhysicsCollision->ConvexVolume(convex) <= 0.f)
+		return false;
+	m_polyhedron = g_pPhysicsCollision->PolyhedronFromConvex(convex, false);
+	if(!m_polyhedron)
+		return false;
 	Refresh();
 	return true;
 }

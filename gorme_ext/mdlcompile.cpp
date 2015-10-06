@@ -7,24 +7,38 @@
 #include "callqueue.h"
 #include "smsdk_ext.h"
 
+#define MAX_COMPILE_ATTEMPS 3
+
 extern KeyValues * g_pGormeConfig;
 extern CMdlCompile * g_pMdlCompile;
 extern CCallQueue * g_pCallQueue;
 
 extern CThreadMutex g_tickMutex;
+extern CInterlockedInt g_tickWaiting;
 
 bool MTFileExists(const char * filename) {
+	g_tickWaiting++;
 	g_tickMutex.Lock();
 	bool retval = g_pFullFileSystem->FileExists(filename);
 	g_tickMutex.Unlock();
+	g_tickWaiting--;
 	return retval;
+}
+
+inline void EnterShittySection() {
+	g_tickWaiting++;
+	g_tickMutex.Lock();
+}
+
+inline void LeaveShittySection() {
+	g_tickMutex.Unlock();
+	g_tickWaiting--;
 }
 
 class CCompileThread {
 public:
 	CCompileThread(CBrush * brush) : m_brush(brush) {}
 	~CCompileThread() {
-		g_pMdlCompile->CompileDone();
 	}
 	void Run();
 private:
@@ -51,69 +65,69 @@ void CCompileThread::Run() {
 		g_pMdlCompile->WriteQC(filename, m_brush, path, mdlhash);
 		g_pMdlCompile->CompileQC(filename);
 		//clean
-		if(deleteQc)
+		/*if(deleteQc)
 			g_pFullFileSystem->RemoveFile(filename);
-		V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
-		if(deleteSmd)
+			V_snprintf(filename, MAX_PATH, "%s/%s.smd", path, mdlhash);
+			if(deleteSmd)
 			g_pFullFileSystem->RemoveFile(filename);
-
+			*/
 		V_snprintf(filename, MAX_PATH, "%s/%s.mdl", path, mdlhash);
 	}
 	*g_pCallQueue << CreateFunctor(m_brush, &CBrush::OnMdlCompiled, CUtlString(filename));
 }
 
-unsigned CompileThread(void * params) {
-	CCompileThread t((CBrush*)params);
-	t.Run();
+unsigned CompileThread(void * vhptr) {
+	ThreadHandle_t * hptr = (ThreadHandle_t*)vhptr;
+
+	while(true) {
+		g_pMdlCompile->m_brushQueueMutex.Lock();
+		if(!g_pMdlCompile->m_brushQueue.Count()) {
+			g_pMdlCompile->m_brushQueueMutex.Unlock();
+			break;
+		}
+		CBrush * brush = g_pMdlCompile->m_brushQueue.RemoveAtHead();
+		g_pMdlCompile->m_brushQueueMutex.Unlock();
+		CCompileThread t(brush);
+		t.Run();
+	}
+	g_pMdlCompile->m_numThreads--;
+	ReleaseThreadHandle(*hptr);
+	delete hptr;
 	return 0;
 }
 
 CMdlCompile::CMdlCompile() {
-	int maxThreads = g_pGormeConfig->GetInt("maxThreads", 1);
-	if(maxThreads < 1)
-		maxThreads = 1;
-	m_numThreads = new CThreadSemaphore(maxThreads, maxThreads);
+	m_maxThreads = g_pGormeConfig->GetInt("maxThreads", 1);
+	if(m_maxThreads < 1)
+		m_maxThreads = 1;
 }
 
 CMdlCompile::~CMdlCompile() {
-	m_threadHandles.Lock();
-	FOR_EACH_VEC(m_threadHandles, it) {
-		ThreadJoin(m_threadHandles[it]);
-		ReleaseThreadHandle(m_threadHandles[it]);
-	}
-	//delete m_numThreads;	//WTF???
+
 }
 
 void CMdlCompile::Compile(CBrush * brush) {
-	m_numThreads->Wait();
-	m_threadHandles.Lock();
-	for(int i = 0; i < m_threadHandles.Count(); i++) {
-		if(ThreadJoin(m_threadHandles[i], 0)) {
-			bool released = ReleaseThreadHandle(m_threadHandles[i]);
-			m_threadHandles.Remove(i);
-			i--;
-		}
-	}
-	ThreadHandle_t handle = CreateSimpleThread(CompileThread, brush);
-	m_threadHandles.AddToTail(handle);
-	m_threadHandles.Unlock();
-}
+	m_brushQueueMutex.Lock();
+	m_brushQueue.Insert(brush);
+	m_brushQueueMutex.Unlock();
 
-void CMdlCompile::CompileDone() {
-	m_numThreads->Release();
+	if(m_numThreads < m_maxThreads) {
+		ThreadHandle_t * hptr = new ThreadHandle_t;
+		*hptr = CreateSimpleThread(CompileThread, hptr);
+		m_numThreads++;
+	}
 }
 
 const char * CMdlCompile::GetMaterialTexture(const char * material) {
-	m_matTexMutex.Lock();
+	CAutoLock al(m_matTexMutex);
 	if(!m_matTex.Defined(material)) {
 		char filename[MAX_PATH];
 		V_snprintf(filename, MAX_PATH, "materials/%s.vmt", material);
 		KeyValues * vmtKv = new KeyValues(NULL);
 		vmtKv->LoadFromFile(g_pFullFileSystem, filename);
-		m_matTex[material] = vmtKv->GetString("$baseTexture");
+		m_matTex[material] = vmtKv->GetString("$baseTexture", g_pGormeConfig->GetString("defaultMaterial", "debug/debugempty"));
 		vmtKv->deleteThis();
 	}
-	m_matTexMutex.Unlock();
 	return m_matTex[material];
 }
 
@@ -121,7 +135,7 @@ void CMdlCompile::CreateMaterial(const char * material) {
 	CUtlBuffer outbuffer(0, 128, CUtlBuffer::TEXT_BUFFER);
 	char filename[MAX_PATH];
 	V_snprintf(filename, MAX_PATH, "materials/models/gorme/%s.vmt", material);
-	m_createMaterialMutex.Lock();
+	CAutoLock al(m_createMaterialMutex);
 	if(!MTFileExists(filename)) {
 		char * lastDir = filename;
 		for(int j = 0; filename[j]; j++)
@@ -134,11 +148,10 @@ void CMdlCompile::CreateMaterial(const char * material) {
 		outbuffer.Printf("\"vertexLitGeneric\"\n{\n\t\"$baseTexture\" \"%s\"\n}\n", GetMaterialTexture(material));
 		g_pFullFileSystem->WriteFile(filename, 0, outbuffer);
 	}
-	m_createMaterialMutex.Unlock();
 }
 
 const texDims_t& CMdlCompile::GetTexDims(const char * material) {
-	m_texDimsMutex.Lock();
+	CAutoLock al(m_texDimsMutex);
 	if(!m_texDims.Defined(material)) {
 		VTFFileHeaderV7_1_t * header;
 		CUtlBuffer buffer;
@@ -150,7 +163,6 @@ const texDims_t& CMdlCompile::GetTexDims(const char * material) {
 		dims.height = header->height;
 		dims.width = header->width;
 	}
-	m_texDimsMutex.Unlock();
 	return m_texDims[material];
 }
 
@@ -177,7 +189,7 @@ void CMdlCompile::WriteSMD(const char * filename, const CBrush * brush) {
 				outbuffer.Printf("0\t\t%g %g %g\t\t%g %g %g\t\t%g %g\n",
 					face->m_triangles[k][1], -face->m_triangles[k][0], face->m_triangles[k][2],
 					face->m_normal[1], -face->m_normal[0], face->m_normal[2],
-					vertexUV[0], vertexUV[1]);
+					vertexUV[0], -vertexUV[1]);
 			}
 		}
 	}
@@ -196,7 +208,7 @@ void CMdlCompile::WriteQC(const char * filename, const CBrush * brush, const cha
 void CMdlCompile::CompileQC(const char * filename) {
 	//there was an issue with accessing not-yet existing file
 	//retrying compilation in an ugly, but working workaround
-	int attempsLeft = 3;
+	int attempsLeft = MAX_COMPILE_ATTEMPS;
 	int wait = 0;
 	char command[MAX_PATH];
 	const char * compiler = g_pGormeConfig->GetString("mdlCompiler");
